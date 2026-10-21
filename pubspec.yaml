@@ -1,0 +1,40 @@
+name: la_mia_libreria
+description: "La mia libreria — app Flutter offline con dati locali sul dispositivo."
+publish_to: "none"
+version: 1.1.2+13
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  image_picker: ^1.1.2
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.5
+  mobile_scanner: ^7.0.0
+  file_picker: ^8.1.2
+  cupertino_icons: ^1.0.8
+  archive: ^4.5.2
+  http: ^1.6.0
+  google_mlkit_text_recognition: ^0.16.0
+  supabase_flutter: ^2.18.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+# Icona dell'app: rigenera con `dart run flutter_launcher_icons`
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"

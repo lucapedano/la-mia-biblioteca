@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f5f0">
+    <title>La mia Biblioteca</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="La mia Biblioteca">
+          <span class="brand-icon">▤</span>
+          <span>La mia <strong>Biblioteca</strong></span>
+        </a>
+        <div id="account" class="account" hidden>
+          <span id="account-email"></span>
+          <button id="sign-out" class="button button-quiet">Esci</button>
+        </div>
+      </header>
+
+      <section id="setup-warning" class="notice" hidden>
+        Configura URL e chiave pubblica Supabase nel file <code>config.js</code>
+        prima di pubblicare il sito.
+      </section>
+
+      <section id="login-view" class="login-view" hidden>
+        <div class="login-card">
+          <span class="eyebrow">LA TUA COLLEZIONE, OVUNQUE</span>
+          <h1>La tua libreria,<br>anche sul web.</h1>
+          <p>Accedi con lo stesso account usato nell’app per consultare i tuoi libri.</p>
+          <form id="login-form">
+            <label for="email">Email</label>
+            <input id="email" type="email" autocomplete="email" required>
+            <label for="password">Password</label>
+            <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+            <button id="login-submit" class="button button-primary" type="submit">Accedi</button>
+          </form>
+          <button id="signup" class="text-button" type="button">Crea un account</button>
+          <button id="demo-login" class="button button-secondary demo-button" type="button">Entra in modalità demo</button>
+          <p id="login-message" class="message" role="status"></p>
+        </div>
+      </section>
+
+      <section id="library-view" hidden>
+        <div id="demo-banner" class="demo-banner" hidden>
+          Modalità demo: questi libri sono esempi e non vengono salvati né condivisi.
+        </div>
+        <div class="hero">
+          <div>
+            <span class="eyebrow">IL TUO SPAZIO DI LETTURA</span>
+            <h1>La mia libreria</h1>
+            <p id="library-tagline">Tutti i tuoi libri, sincronizzati in un unico posto.</p>
+          </div>
+          <button id="refresh" class="button button-secondary" type="button">↻ <span>Aggiorna</span></button>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div class="library-tools">
+          <label class="search">
+            <span aria-hidden="true">⌕</span>
+            <input id="search" type="search" placeholder="Cerca titolo, autore o argomento…" aria-label="Cerca nella libreria">
+          </label>
+          <select id="status-filter" aria-label="Filtra per stato">
+            <option value="">Tutti gli stati</option>
+            <option value="to_read">Da leggere</option>
+            <option value="reading">In corso</option>
+            <option value="read">Letto</option>
+          </select>
+        </div>
+        <div id="status" class="status" role="status"></div>
+        <div id="book-grid" class="book-grid"></div>
+      </section>
+    </main>
+
+    <dialog id="book-dialog">
+      <button id="close-dialog" class="dialog-close" type="button" aria-label="Chiudi">×</button>
+      <div id="book-details"></div>
+    </dialog>
+  </body>
+</html>
