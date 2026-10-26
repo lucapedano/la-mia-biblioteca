@@ -50,6 +50,7 @@
   let client;
   let books = [];
   let demoMode = false;
+  let libraryViewMode = 'themes';
   const cloudConfigured = Boolean(
     config.url && config.anonKey &&
     !config.url.includes('YOUR_PROJECT') &&
@@ -60,6 +61,18 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
   const formatStatus = (value) => statusLabels[value] || value || 'Da leggere';
+  const bookColor = (value) => /^#[\da-f]{6}$/i.test(String(value || ''))
+    ? String(value)
+    : '#8D6E63';
+  const contrastColor = (hex) => {
+    const color = bookColor(hex);
+    const red = Number.parseInt(color.slice(1, 3), 16);
+    const green = Number.parseInt(color.slice(3, 5), 16);
+    const blue = Number.parseInt(color.slice(5, 7), 16);
+    return (0.299 * red + 0.587 * green + 0.114 * blue) / 255 > 0.6
+      ? '#1C1C1E'
+      : '#FFFFFF';
+  };
 
   async function coverUrl(book) {
     if (book.cover_url?.startsWith('http')) return book.cover_url;
@@ -212,9 +225,14 @@
       grid.innerHTML = '<div class="empty">Nessun libro trovato con questi filtri.</div>';
       return;
     }
+    if (libraryViewMode === 'themes') {
+      renderThemeGroups(visible);
+      return;
+    }
+
     grid.innerHTML = visible.map((book) => `
       <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" role="button">
-        <div class="cover" style="--cover:${escapeHtml(book.color || '#8D6E63')}">
+        <div class="cover" style="--cover:${bookColor(book.color)}">
           ${book.displayCover
             ? `<img src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">`
             : '<span class="cover-symbol" aria-hidden="true">▤</span>'}
@@ -236,6 +254,45 @@
         }
       });
     });
+  }
+
+  function renderThemeGroups(visibleBooks) {
+    const groups = new Map();
+    visibleBooks.forEach((book) => {
+      const label = String(book.theme || '').trim() || 'Senza tematica';
+      if (!groups.has(label)) {
+        groups.set(label, { label, color: bookColor(book.color), count: 0 });
+      }
+      groups.get(label).count += 1;
+    });
+    const sortedGroups = [...groups.values()].sort((first, second) =>
+      second.count - first.count || first.label.localeCompare(second.label, 'it'),
+    );
+
+    grid.innerHTML = sortedGroups.map((group) => `
+      <button class="theme-card" type="button" data-theme="${escapeHtml(group.label)}"
+        style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
+        <span class="theme-fold" aria-hidden="true"></span>
+        <span class="theme-label">${escapeHtml(group.label)}</span>
+        <span class="theme-count">${group.count} ${group.count === 1 ? 'libro' : 'libri'}</span>
+      </button>`).join('');
+    grid.querySelectorAll('.theme-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        document.querySelector('#theme-filter').value = card.dataset.theme;
+        setLibraryViewMode('books');
+        renderBooks();
+      });
+    });
+  }
+
+  function setLibraryViewMode(mode) {
+    libraryViewMode = mode;
+    if (mode === 'themes') document.querySelector('#theme-filter').value = '';
+    const showThemes = mode === 'themes';
+    document.querySelector('#view-themes').classList.toggle('is-active', showThemes);
+    document.querySelector('#view-themes').setAttribute('aria-pressed', String(showThemes));
+    document.querySelector('#view-books').classList.toggle('is-active', !showThemes);
+    document.querySelector('#view-books').setAttribute('aria-pressed', String(!showThemes));
   }
 
   function showBook(book) {
@@ -339,7 +396,18 @@
   });
   document.querySelector('#search').addEventListener('input', renderBooks);
   document.querySelector('#status-filter').addEventListener('change', renderBooks);
-  document.querySelector('#theme-filter').addEventListener('change', renderBooks);
+  document.querySelector('#theme-filter').addEventListener('change', () => {
+    if (document.querySelector('#theme-filter').value) setLibraryViewMode('books');
+    renderBooks();
+  });
+  document.querySelector('#view-themes').addEventListener('click', () => {
+    setLibraryViewMode('themes');
+    renderBooks();
+  });
+  document.querySelector('#view-books').addEventListener('click', () => {
+    setLibraryViewMode('books');
+    renderBooks();
+  });
   document.querySelector('#add-book').addEventListener('click', () => {
     if (demoMode) {
       statusMessage.textContent = 'La demo è di sola consultazione. Accedi per aggiungere libri.';

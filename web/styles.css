@@ -43,7 +43,16 @@ h1 { margin: 10px 0 8px; font: 700 clamp(32px, 5vw, 48px)/1.08 'Playfair Display
 .search input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 14px; color: var(--ink); }
 select, input[type=email], input[type=password] { border: 1px solid var(--line); border-radius: 9px; background: var(--card); padding: 0 13px; color: var(--ink); }
 .library-tools select { min-width: 160px; }
+.view-switch { display: inline-flex; gap: 4px; margin: 0 0 14px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #eeece5; }
+.view-switch-button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.view-switch-button.is-active { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px #28291b1a; }
 .book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; padding: 4px 0 60px; }
+.theme-card { position: relative; display: flex; min-height: 155px; flex-direction: column; align-items: flex-start; justify-content: flex-end; overflow: hidden; padding: 20px 17px; border: 0; border-radius: 4px; background: var(--theme-color); color: var(--theme-text); text-align: left; box-shadow: 0 3px 8px #28291b24; transition: transform .16s ease, box-shadow .16s ease; }
+.theme-card:hover { transform: translateY(-3px); box-shadow: 0 9px 18px #28291b2b; }
+.theme-card:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.theme-fold { position: absolute; top: 0; right: 0; width: 23px; height: 23px; background: linear-gradient(225deg, #0005 50%, transparent 51%); }
+.theme-label { z-index: 1; max-width: 100%; overflow: hidden; font-size: 17px; font-weight: 700; text-overflow: ellipsis; }
+.theme-count { z-index: 1; margin-top: 4px; color: currentColor; font-size: 13px; opacity: .82; }
 .book-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
 .book-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px #28291b14; }
 .cover { display: grid; place-items: center; aspect-ratio: 1.1 / 1; background: var(--cover, #8d6e63); color: #fff; overflow: hidden; }
@@ -102,6 +111,7 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
   .library-tools { flex-direction: column; }
   .library-tools select { min-height: 44px; }
   .book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .theme-card { min-height: 135px; padding: 16px 13px; }
   .book-info { padding: 11px; }
   .login-card { padding: 26px 22px; }
 }
