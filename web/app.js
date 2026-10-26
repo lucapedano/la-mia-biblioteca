@@ -51,6 +51,7 @@
   let books = [];
   let demoMode = false;
   let libraryViewMode = 'themes';
+  let loadingBooks = false;
   const cloudConfigured = Boolean(
     config.url && config.anonKey &&
     !config.url.includes('YOUR_PROJECT') &&
@@ -101,6 +102,20 @@
     document.querySelector('#theme-options').innerHTML = themes
       .map((theme) => `<option value="${escapeHtml(theme)}"></option>`)
       .join('');
+  }
+
+  function isNewBook(book) {
+    const created = Date.parse(book.created_at || '');
+    const age = Date.now() - created;
+    return Number.isFinite(created) && age >= 0 && age < 24 * 60 * 60 * 1000;
+  }
+
+  function renderLatestNotice() {
+    const notice = document.querySelector('#latest-notice');
+    const newCount = books.filter(isNewBook).length;
+    notice.hidden = newCount === 0;
+    notice.textContent = newCount ? `Nuovi ${newCount}` : 'Nuovi';
+    document.querySelector('#view-latest').classList.toggle('has-new', newCount > 0);
   }
 
   function showScreen(user) {
@@ -168,9 +183,14 @@
 
   function enterDemo() {
     demoMode = true;
-    books = demoBooks.map((book) => ({ ...book, displayCover: '' }));
+    books = demoBooks.map((book, index) => ({
+      ...book,
+      created_at: new Date(Date.now() - index * 60 * 60 * 1000).toISOString(),
+      displayCover: '',
+    }));
     setupWarning.hidden = true;
     renderThemeOptions();
+    renderLatestNotice();
     document.querySelector('#library-tagline').textContent =
       'Esplora una libreria di esempio: ricerca, filtri e schede libro sono interattivi.';
     showScreen({ email: 'Demo locale' });
@@ -180,22 +200,29 @@
   }
 
   async function loadBooks() {
+    if (loadingBooks) return;
+    loadingBooks = true;
     statusMessage.textContent = 'Caricamento della libreria…';
-    const { data, error } = await client.from('books')
-      .select('*')
-      .is('deleted_at', null)
-      .order('title', { ascending: true });
-    if (error) throw error;
-    books = await Promise.all((data || []).map(async (book) => ({
-      ...book,
-      displayCover: await coverUrl(book),
-    })));
-    renderThemeOptions();
-    renderStats();
-    renderBooks();
-    statusMessage.textContent = books.length
-      ? `${books.length} ${books.length === 1 ? 'libro nella libreria' : 'libri nella libreria'}`
-      : 'La libreria è vuota. Importa un backup dall’app dopo aver effettuato l’accesso.';
+    try {
+      const { data, error } = await client.from('books')
+        .select('*')
+        .is('deleted_at', null)
+        .order('title', { ascending: true });
+      if (error) throw error;
+      books = await Promise.all((data || []).map(async (book) => ({
+        ...book,
+        displayCover: await coverUrl(book),
+      })));
+      renderThemeOptions();
+      renderStats();
+      renderLatestNotice();
+      renderBooks();
+      statusMessage.textContent = books.length
+        ? `${books.length} ${books.length === 1 ? 'libro nella libreria' : 'libri nella libreria'}`
+        : 'La libreria è vuota. Importa un backup dall’app dopo aver effettuato l’accesso.';
+    } finally {
+      loadingBooks = false;
+    }
   }
 
   function renderStats() {
@@ -230,7 +257,19 @@
       return;
     }
 
-    grid.innerHTML = visible.map((book) => `
+    const displayedBooks = libraryViewMode === 'latest'
+      ? [...visible]
+        .sort((first, second) =>
+          (Date.parse(second.created_at || '') || 0) -
+          (Date.parse(first.created_at || '') || 0),
+        )
+        .slice(0, 10)
+      : visible;
+    renderBookCards(displayedBooks);
+  }
+
+  function renderBookCards(displayedBooks) {
+    grid.innerHTML = displayedBooks.map((book) => `
       <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" role="button">
         <div class="cover" style="--cover:${bookColor(book.color)}">
           ${book.displayCover
@@ -238,7 +277,9 @@
             : '<span class="cover-symbol" aria-hidden="true">▤</span>'}
         </div>
         <div class="book-info">
-          <h2 class="book-title" title="${escapeHtml(book.title)}">${escapeHtml(book.title)}</h2>
+          <h2 class="book-title" title="${escapeHtml(book.title)}">
+            ${escapeHtml(book.title)}${isNewBook(book) ? '<span class="new-book-mark">Nuovo</span>' : ''}
+          </h2>
           <p class="book-author">${escapeHtml(book.author)}</p>
           <div class="book-meta"><span>${escapeHtml(book.theme || 'Senza categoria')}</span><span class="pill">${escapeHtml(formatStatus(book.status))}</span></div>
         </div>
@@ -287,12 +328,19 @@
 
   function setLibraryViewMode(mode) {
     libraryViewMode = mode;
-    if (mode === 'themes') document.querySelector('#theme-filter').value = '';
-    const showThemes = mode === 'themes';
-    document.querySelector('#view-themes').classList.toggle('is-active', showThemes);
-    document.querySelector('#view-themes').setAttribute('aria-pressed', String(showThemes));
-    document.querySelector('#view-books').classList.toggle('is-active', !showThemes);
-    document.querySelector('#view-books').setAttribute('aria-pressed', String(!showThemes));
+    if (mode === 'themes' || mode === 'latest') {
+      document.querySelector('#theme-filter').value = '';
+    }
+    for (const [buttonId, buttonMode] of [
+      ['view-themes', 'themes'],
+      ['view-books', 'books'],
+      ['view-latest', 'latest'],
+    ]) {
+      const selected = mode === buttonMode;
+      const button = document.querySelector(`#${buttonId}`);
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    }
   }
 
   function showBook(book) {
@@ -408,6 +456,10 @@
     setLibraryViewMode('books');
     renderBooks();
   });
+  document.querySelector('#view-latest').addEventListener('click', () => {
+    setLibraryViewMode('latest');
+    renderBooks();
+  });
   document.querySelector('#add-book').addEventListener('click', () => {
     if (demoMode) {
       statusMessage.textContent = 'La demo è di sola consultazione. Accedi per aggiungere libri.';
@@ -429,6 +481,14 @@
   });
 
   if (client) {
+    window.setInterval(() => {
+      if (demoMode || !client.auth.currentUser ||
+          document.visibilityState !== 'visible' || loadingBooks) return;
+      loadBooks().catch((error) => {
+        statusMessage.textContent = error.message || 'Aggiornamento non riuscito.';
+      });
+    }, 60_000);
+
     client.auth.getSession().then(async ({ data, error }) => {
       if (error) {
         loginMessage.textContent = error.message;

@@ -108,7 +108,12 @@ flutter build appbundle --flavor standard --release
    [web/config.js](./web/config.js), poi pubblica il contenuto della cartella
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
    account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
-   aggiungere libri e usare **Aggiorna** per rileggere le modifiche dell'app.
+   aggiungere libri, consultare gli ultimi dieci inserimenti e usare
+   **Aggiorna** per rileggere le modifiche dell'app. Sito e app segnalano con
+   un indicatore luminoso i libri aggiunti nelle ultime 24 ore; il sito
+   aggiorna la libreria automaticamente ogni minuto mentre è aperto.
+   Nell'app la nuova voce **Ultimi** si trova nella barra di navigazione in
+   basso e mostra gli ultimi dieci libri.
 
 Ogni account vede e modifica soltanto la propria libreria. La chiave pubblica
 può essere presente nel client perché l'autorizzazione è applicata dalle policy

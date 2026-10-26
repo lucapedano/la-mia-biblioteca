@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f5f0">
     <title>La mia Biblioteca</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js" defer></script>
+    <script src="app.js?v=4" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -80,6 +80,9 @@
         <div class="view-switch" role="group" aria-label="Visualizzazione libreria">
           <button id="view-themes" class="view-switch-button is-active" type="button" aria-pressed="true">Tematiche</button>
           <button id="view-books" class="view-switch-button" type="button" aria-pressed="false">Tutti i libri</button>
+          <button id="view-latest" class="view-switch-button" type="button" aria-pressed="false">
+            Ultimi inseriti <span id="latest-notice" class="latest-notice" hidden>Nuovi</span>
+          </button>
         </div>
         <div id="status" class="status" role="status"></div>
         <div id="book-grid" class="book-grid"></div>
