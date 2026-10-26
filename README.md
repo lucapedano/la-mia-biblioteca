@@ -103,7 +103,7 @@ flutter build appbundle --flavor standard --release
    **Sincronizza adesso** quando la connessione ritorna. Per eliminare libri
    o svuotare la libreria mentre è attiva la sincronizzazione è necessaria la
    connessione. Dopo aver effettuato l'accesso, l'app riprova a sincronizzare
-   automaticamente ogni minuto mentre è aperta.
+   automaticamente ogni cinque minuti mentre è aperta.
 5. Inserisci lo stesso URL e la stessa chiave pubblica in
    [web/config.js](./web/config.js), poi pubblica il contenuto della cartella
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
@@ -111,7 +111,7 @@ flutter build appbundle --flavor standard --release
    aggiungere libri, consultare gli ultimi dieci inserimenti e usare
    **Aggiorna** per rileggere le modifiche dell'app. Sito e app segnalano con
    un indicatore luminoso i libri aggiunti nelle ultime 24 ore; il sito
-   aggiorna la libreria automaticamente ogni minuto mentre è aperto.
+   aggiorna la libreria automaticamente ogni cinque minuti mentre è aperto.
    Nell'app la nuova voce **Ultimi** si trova nella barra di navigazione in
    basso e mostra gli ultimi dieci libri.
 

@@ -61,6 +61,13 @@
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
+  const errorMessage = (error, fallback) => {
+    const message = String(error?.message || '');
+    if (/too many connections|remaining connection slots|max clients reached/i.test(message)) {
+      return 'Supabase ha raggiunto temporaneamente il limite di connessioni. Attendi qualche minuto e riprova con Aggiorna.';
+    }
+    return message || fallback;
+  };
   const formatStatus = (value) => statusLabels[value] || value || 'Da leggere';
   const bookColor = (value) => /^#[\da-f]{6}$/i.test(String(value || ''))
     ? String(value)
@@ -175,7 +182,7 @@
       addBookDialog.close();
       await loadBooks();
     } catch (error) {
-      addBookMessage.textContent = error.message || 'Impossibile salvare il libro.';
+      addBookMessage.textContent = errorMessage(error, 'Impossibile salvare il libro.');
     } finally {
       saveButton.disabled = false;
     }
@@ -439,7 +446,7 @@
     try {
       await loadBooks();
     } catch (error) {
-      statusMessage.textContent = error.message || 'Aggiornamento non riuscito.';
+      statusMessage.textContent = errorMessage(error, 'Aggiornamento non riuscito.');
     }
   });
   document.querySelector('#search').addEventListener('input', renderBooks);
@@ -487,7 +494,7 @@
       loadBooks().catch((error) => {
         statusMessage.textContent = error.message || 'Aggiornamento non riuscito.';
       });
-    }, 60_000);
+    }, 300_000);
 
     client.auth.getSession().then(async ({ data, error }) => {
       if (error) {
@@ -499,7 +506,7 @@
         try {
           await loadBooks();
         } catch (loadError) {
-          statusMessage.textContent = loadError.message || 'Libreria non disponibile.';
+          statusMessage.textContent = errorMessage(loadError, 'Libreria non disponibile.');
         }
       }
     });

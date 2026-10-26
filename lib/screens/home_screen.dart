@@ -45,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
     unawaited(_loadRecentCount());
     _recentRefreshTimer = Timer.periodic(
-      const Duration(minutes: 1),
+      const Duration(minutes: 5),
       (_) => _loadRecentCount(),
     );
   }

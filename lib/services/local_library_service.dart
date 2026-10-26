@@ -25,8 +25,7 @@ class LibraryImportResult {
   });
 }
 
-/// Device-local library storage. Book records are stored as JSON and cover
-/// images are copied into the app's private support directory.
+/// Local-first library storage with optional authenticated cloud sync.
 class LocalLibraryService {
   static const _favoritesKey = 'favorite_authors';
   static const _lastAutomaticBackupKey = 'last_automatic_backup';
@@ -37,9 +36,12 @@ class LocalLibraryService {
   final Directory _coversDirectory;
   List<Book> _books = [];
   Timer? _automaticBackupTimer;
+  Timer? _cloudSyncTimer;
   bool _automaticBackupRunning = false;
   bool _automaticBackupPending = false;
   final SupabaseClient? _cloudClient;
+  StreamSubscription<AuthState>? _authSubscription;
+  Future<void>? _cloudSyncFuture;
   String? _cloudSyncError;
 
   LocalLibraryService._(
@@ -63,11 +65,10 @@ class LocalLibraryService {
       cloudClient,
     );
     await service._load();
-    if (cloudClient?.auth.currentUser != null) {
-      try {
-        await service.syncWithCloud();
-      } catch (error) {
-        service._cloudSyncError = '$error';
+    if (cloudClient != null) {
+      service._startCloudSync();
+      if (cloudClient.auth.currentUser != null) {
+        await service._syncInBackground();
       }
     }
     return service;
@@ -78,7 +79,38 @@ class LocalLibraryService {
   String? get cloudEmail => _cloudClient?.auth.currentUser?.email;
   String? get cloudSyncError => _cloudSyncError;
 
-  Future<void> syncWithCloud() async {
+  void _startCloudSync() {
+    final client = _cloudClient;
+    if (client == null) return;
+    _authSubscription = client.auth.onAuthStateChange.listen((state) {
+      if (state.event == AuthChangeEvent.signedIn) {
+        unawaited(_syncInBackground());
+      }
+    });
+    _cloudSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (client.auth.currentUser != null) {
+        unawaited(_syncInBackground());
+      }
+    });
+  }
+
+  Future<void> _syncInBackground() async {
+    try {
+      await syncWithCloud();
+    } catch (error) {
+      _cloudSyncError = '$error';
+    }
+  }
+
+  Future<void> syncWithCloud() {
+    final current = _cloudSyncFuture;
+    if (current != null) return current;
+    final operation = _syncWithCloud();
+    _cloudSyncFuture = operation;
+    return operation.whenComplete(() => _cloudSyncFuture = null);
+  }
+
+  Future<void> _syncWithCloud() async {
     final client = _cloudClient;
     final user = client?.auth.currentUser;
     if (client == null || user == null) {
@@ -129,6 +161,7 @@ class LocalLibraryService {
     }
 
     final merged = <String, Book>{...remoteBooks};
+    final pendingUploads = <Book>[];
     for (final local in _books) {
       final remote = remoteBooks[local.id];
       final deletedAt = remoteTombstones[local.id];
@@ -138,11 +171,12 @@ class LocalLibraryService {
       } else if (remote == null ||
           _isNewer(local.updatedAt, remote.updatedAt)) {
         merged[local.id] = local;
+        pendingUploads.add(local);
       }
     }
     _books = merged.values.toList();
     await _writeLocalLibrary();
-    await _uploadBooks(_books);
+    await _uploadBooks(pendingUploads);
     _cloudSyncError = null;
   }
 
@@ -240,7 +274,11 @@ class LocalLibraryService {
 
   Future<void> createAutomaticBackup() => _writeAutomaticBackup();
 
-  void close() => _automaticBackupTimer?.cancel();
+  void close() {
+    _automaticBackupTimer?.cancel();
+    _cloudSyncTimer?.cancel();
+    unawaited(_authSubscription?.cancel());
+  }
 
   Future<void> _writeAutomaticBackup() async {
     if (_automaticBackupRunning) {
