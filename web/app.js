@@ -9,6 +9,9 @@
   const grid = document.querySelector('#book-grid');
   const dialog = document.querySelector('#book-dialog');
   const details = document.querySelector('#book-details');
+  const addBookDialog = document.querySelector('#add-book-dialog');
+  const addBookForm = document.querySelector('#add-book-form');
+  const addBookMessage = document.querySelector('#add-book-message');
   const demoBanner = document.querySelector('#demo-banner');
   const statusLabels = { to_read: 'Da leggere', reading: 'In corso', read: 'Letto' };
   const demoBooks = [
@@ -67,6 +70,26 @@
     return data.signedUrl;
   }
 
+  function renderThemeOptions() {
+    const selectedTheme = document.querySelector('#theme-filter').value;
+    const themes = [...new Set(
+      books.map((book) => String(book.theme || '').trim()).filter(Boolean),
+    )].sort((first, second) => first.localeCompare(second, 'it'));
+    const options = [
+      '<option value="">Tutte le tematiche</option>',
+      ...themes.map((theme) =>
+        `<option value="${escapeHtml(theme)}">${escapeHtml(theme)}</option>`,
+      ),
+    ];
+    document.querySelector('#theme-filter').innerHTML = options.join('');
+    if (themes.includes(selectedTheme)) {
+      document.querySelector('#theme-filter').value = selectedTheme;
+    }
+    document.querySelector('#theme-options').innerHTML = themes
+      .map((theme) => `<option value="${escapeHtml(theme)}"></option>`)
+      .join('');
+  }
+
   function showScreen(user) {
     const signedIn = Boolean(user);
     loginView.hidden = signedIn;
@@ -76,10 +99,65 @@
     if (user) document.querySelector('#account-email').textContent = user.email || '';
   }
 
+  async function addBook(event) {
+    event.preventDefault();
+    if (demoMode || !client?.auth.currentUser) {
+      addBookMessage.textContent = 'Accedi al tuo account per aggiungere libri alla libreria.';
+      return;
+    }
+
+    const formData = new FormData(addBookForm);
+    const title = String(formData.get('title') || '').trim();
+    const author = String(formData.get('author') || '').trim();
+    const theme = String(formData.get('theme') || '').trim();
+    if (!title || !author || !theme) {
+      addBookMessage.textContent = 'Titolo, autore e tematica sono obbligatori.';
+      return;
+    }
+
+    const saveButton = document.querySelector('#save-book');
+    saveButton.disabled = true;
+    addBookMessage.textContent = '';
+    const now = new Date().toISOString();
+    const book = {
+      id: crypto.randomUUID(),
+      user_id: client.auth.currentUser.id,
+      title,
+      author,
+      theme,
+      year: formData.get('year') ? Number(formData.get('year')) : null,
+      pages: formData.get('pages') ? Number(formData.get('pages')) : null,
+      status: String(formData.get('status') || 'to_read'),
+      color: '#8D6E63',
+      location: String(formData.get('location') || '').trim() || null,
+      isbn: String(formData.get('isbn') || '').trim() || null,
+      cover_url: String(formData.get('cover_url') || '').trim() || null,
+      plot: String(formData.get('plot') || '').trim() || null,
+      notes: String(formData.get('notes') || '').trim() || null,
+      cover_path: null,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+    };
+
+    try {
+      const { error } = await client.from('books').insert(book);
+      if (error) throw error;
+      addBookForm.reset();
+      addBookDialog.close();
+      await loadBooks();
+    } catch (error) {
+      addBookMessage.textContent = error.message || 'Impossibile salvare il libro.';
+    } finally {
+      saveButton.disabled = false;
+    }
+  }
+
   function enterDemo() {
     demoMode = true;
     books = demoBooks.map((book) => ({ ...book, displayCover: '' }));
     setupWarning.hidden = true;
+    renderThemeOptions();
     document.querySelector('#library-tagline').textContent =
       'Esplora una libreria di esempio: ricerca, filtri e schede libro sono interattivi.';
     showScreen({ email: 'Demo locale' });
@@ -99,6 +177,7 @@
       ...book,
       displayCover: await coverUrl(book),
     })));
+    renderThemeOptions();
     renderStats();
     renderBooks();
     statusMessage.textContent = books.length
@@ -121,10 +200,13 @@
   function renderBooks() {
     const query = document.querySelector('#search').value.trim().toLocaleLowerCase('it');
     const status = document.querySelector('#status-filter').value;
+    const theme = document.querySelector('#theme-filter').value;
     const visible = books.filter((book) => {
       const matchesText = ['title', 'author', 'theme', 'plot', 'notes', 'isbn']
         .some((field) => String(book[field] || '').toLocaleLowerCase('it').includes(query));
-      return matchesText && (!status || book.status === status);
+      return matchesText &&
+        (!status || book.status === status) &&
+        (!theme || String(book.theme || '').trim() === theme);
     });
     if (!visible.length) {
       grid.innerHTML = '<div class="empty">Nessun libro trovato con questi filtri.</div>';
@@ -257,6 +339,22 @@
   });
   document.querySelector('#search').addEventListener('input', renderBooks);
   document.querySelector('#status-filter').addEventListener('change', renderBooks);
+  document.querySelector('#theme-filter').addEventListener('change', renderBooks);
+  document.querySelector('#add-book').addEventListener('click', () => {
+    if (demoMode) {
+      statusMessage.textContent = 'La demo è di sola consultazione. Accedi per aggiungere libri.';
+      return;
+    }
+    addBookMessage.textContent = '';
+    addBookDialog.showModal();
+    document.querySelector('#book-title').focus();
+  });
+  addBookForm.addEventListener('submit', addBook);
+  document.querySelector('#close-add-dialog').addEventListener('click', () => addBookDialog.close());
+  document.querySelector('#cancel-add-book').addEventListener('click', () => addBookDialog.close());
+  addBookDialog.addEventListener('click', (event) => {
+    if (event.target === addBookDialog) addBookDialog.close();
+  });
   document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();

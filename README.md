@@ -66,9 +66,9 @@ progetto proprio e aver effettuato l'accesso.
 ```bash
 cd biblio_app
 flutter pub get
-flutter run
-flutter build apk --release
-flutter build appbundle --release
+flutter run --flavor standard
+flutter build apk --flavor standard --release
+flutter build appbundle --flavor standard --release
 ```
 
 ## Piattaforma web e sincronizzazione
@@ -78,33 +78,66 @@ flutter build appbundle --release
    privata dei libri, le policy di accesso e il bucket privato delle copertine.
 3. Copia il Project URL e la chiave pubblica `anon`/publishable del progetto.
    Non usare mai la chiave `service_role`.
-4. Avvia l'app con le due chiavi:
+4. Nel progetto locale crea `supabase.local.json` (è escluso da Git) con
+   l'URL e la chiave pubblica del progetto:
 
    ```bash
-   flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+   {
+     "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+     "SUPABASE_ANON_KEY": "YOUR_PUBLIC_ANON_KEY"
+   }
    ```
 
-   In Impostazioni, accedi o crea l'account privato. Poi importa il backup JSON
-   o ZIP esistente: i libri e le copertine verranno sincronizzati sul cloud.
+   Avvia poi l'app con:
+
+   ```bash
+   flutter run --flavor cloud --dart-define-from-file=supabase.local.json
+   ```
+
+   Prima di sostituire o disinstallare una versione dell'app che contiene già
+   libri, esporta un backup dal telefono. In Impostazioni, accedi o crea
+   l'account privato e importa il backup JSON o ZIP: libri e copertine verranno
+   sincronizzati sul cloud.
    Le nuove modifiche dell'app vengono inviate automaticamente. In caso di
    errore di rete le modifiche a un libro restano sul dispositivo: usa
    **Sincronizza adesso** quando la connessione ritorna. Per eliminare libri
    o svuotare la libreria mentre è attiva la sincronizzazione è necessaria la
-   connessione.
+   connessione. Dopo aver effettuato l'accesso, l'app riprova a sincronizzare
+   automaticamente ogni minuto mentre è aperta.
 5. Inserisci lo stesso URL e la stessa chiave pubblica in
    [web/config.js](./web/config.js), poi pubblica il contenuto della cartella
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
-   account dell'app. Il sito mostra la libreria in sola consultazione; usa
-   **Aggiorna** per rileggere le modifiche recenti dell'app.
+   account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
+   aggiungere libri e usare **Aggiorna** per rileggere le modifiche dell'app.
 
-Ogni account vede soltanto la propria libreria. Le modifiche web non sono
-abilitate; l'app resta il punto di gestione e la sincronizzazione web è di
-consultazione. La chiave pubblica può essere presente nel client perché
-l'autorizzazione è applicata dalle policy RLS di Supabase.
+Ogni account vede e modifica soltanto la propria libreria. La chiave pubblica
+può essere presente nel client perché l'autorizzazione è applicata dalle policy
+RLS di Supabase.
 
 Per provare l'interfaccia senza configurare Supabase, apri il sito e scegli
 **Entra in modalità demo**. La demo mostra sei libri fittizi e permette di
 provare ricerca, filtri e dettagli; non usa account e non salva né invia dati.
+
+### Installare la versione Cloud sul telefono senza collegarlo al PC
+
+Il flavor Android `cloud` usa l'URL e la chiave pubblica preconfigurati e
+installa una seconda app, **La mia Biblioteca Cloud**, accanto all'app
+esistente. È separata apposta: le firme degli APK di distribuzione esistenti
+non corrispondono alla chiave di upload disponibile in questo progetto, quindi
+Android non può aggiornarli in-place senza prima disinstallarli.
+
+Per generare l'APK Cloud ARM64:
+
+```bash
+flutter build apk --flavor cloud --release --target-platform android-arm64
+```
+
+Per trasferire i dati senza PC, nell'app originale salva un backup manuale
+nella cartella Download. Poi scarica e installa l'APK Cloud sul telefono,
+accedi con lo stesso account e scegli **Impostazioni → Importa backup**,
+selezionando il file in Download. L'app originale e i suoi dati rimangono
+intatti. Android richiede comunque di confermare l'installazione; un'app non
+può installarsi o aggiornarsi da sola senza l'autorizzazione dell'utente.
 
 ## Pubblicazione Android
 

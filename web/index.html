@@ -56,7 +56,10 @@
             <h1>La mia libreria</h1>
             <p id="library-tagline">Tutti i tuoi libri, sincronizzati in un unico posto.</p>
           </div>
-          <button id="refresh" class="button button-secondary" type="button">↻ <span>Aggiorna</span></button>
+          <div class="hero-actions">
+            <button id="add-book" class="button button-primary" type="button">＋ <span>Aggiungi libro</span></button>
+            <button id="refresh" class="button button-secondary" type="button">↻ <span>Aggiorna</span></button>
+          </div>
         </div>
         <div id="stats" class="stats"></div>
         <div class="library-tools">
@@ -70,6 +73,9 @@
             <option value="reading">In corso</option>
             <option value="read">Letto</option>
           </select>
+          <select id="theme-filter" aria-label="Filtra per tematica">
+            <option value="">Tutte le tematiche</option>
+          </select>
         </div>
         <div id="status" class="status" role="status"></div>
         <div id="book-grid" class="book-grid"></div>
@@ -79,6 +85,52 @@
     <dialog id="book-dialog">
       <button id="close-dialog" class="dialog-close" type="button" aria-label="Chiudi">×</button>
       <div id="book-details"></div>
+    </dialog>
+
+    <dialog id="add-book-dialog">
+      <button id="close-add-dialog" class="dialog-close" type="button" aria-label="Chiudi">×</button>
+      <form id="add-book-form" class="book-form">
+        <span class="eyebrow">LA TUA COLLEZIONE</span>
+        <h2>Aggiungi un libro</h2>
+        <label for="book-title">Titolo *</label>
+        <input id="book-title" name="title" required maxlength="250">
+        <label for="book-author">Autore *</label>
+        <input id="book-author" name="author" required maxlength="250">
+        <label for="book-theme">Tematica *</label>
+        <input id="book-theme" name="theme" required maxlength="120" list="theme-options" placeholder="Es. Narrativa, Giallo, Storia">
+        <datalist id="theme-options"></datalist>
+        <div class="form-row">
+          <div>
+            <label for="book-year">Anno</label>
+            <input id="book-year" name="year" type="number" min="0" max="9999">
+          </div>
+          <div>
+            <label for="book-pages">Pagine</label>
+            <input id="book-pages" name="pages" type="number" min="1" max="100000">
+          </div>
+        </div>
+        <label for="book-status">Stato di lettura</label>
+        <select id="book-status" name="status">
+          <option value="to_read">Da leggere</option>
+          <option value="reading">In corso</option>
+          <option value="read">Letto</option>
+        </select>
+        <label for="book-location">Posizione</label>
+        <input id="book-location" name="location" maxlength="250">
+        <label for="book-isbn">ISBN</label>
+        <input id="book-isbn" name="isbn" maxlength="32">
+        <label for="book-cover-url">URL copertina</label>
+        <input id="book-cover-url" name="cover_url" type="url" maxlength="2048" placeholder="https://…">
+        <label for="book-plot">Trama</label>
+        <textarea id="book-plot" name="plot" rows="3" maxlength="10000"></textarea>
+        <label for="book-notes">Note</label>
+        <textarea id="book-notes" name="notes" rows="3" maxlength="10000"></textarea>
+        <p id="add-book-message" class="message" role="status"></p>
+        <div class="form-actions">
+          <button id="cancel-add-book" class="button button-quiet" type="button">Annulla</button>
+          <button id="save-book" class="button button-primary" type="submit">Salva libro</button>
+        </div>
+      </form>
     </dialog>
   </body>
 </html>
