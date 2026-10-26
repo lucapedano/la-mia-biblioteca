@@ -383,7 +383,7 @@
       if (error) throw error;
       await loadBooks();
     } catch (error) {
-      loginMessage.textContent = error.message || 'Accesso non riuscito.';
+      loginMessage.textContent = errorMessage(error, 'Accesso non riuscito.');
     } finally {
       button.disabled = false;
     }
@@ -492,7 +492,7 @@
       if (demoMode || !client.auth.currentUser ||
           document.visibilityState !== 'visible' || loadingBooks) return;
       loadBooks().catch((error) => {
-        statusMessage.textContent = error.message || 'Aggiornamento non riuscito.';
+        statusMessage.textContent = errorMessage(error, 'Aggiornamento non riuscito.');
       });
     }, 300_000);
 
