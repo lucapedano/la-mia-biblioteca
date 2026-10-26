@@ -25,8 +25,9 @@ class _RecentBooksScreenState extends State<RecentBooksScreen> {
   }
 
   Future<List<Book>> _load() async {
-    final books =
-        await context.read<LocalLibraryService>().list(sort: 'date_desc');
+    final service = context.read<LocalLibraryService>();
+    if (service.isCloudConnected) await service.syncWithCloud();
+    final books = await service.list(sort: 'date_desc');
     return books.take(10).toList();
   }
 
