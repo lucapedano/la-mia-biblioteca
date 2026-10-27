@@ -7,8 +7,9 @@
     <title>La mia Biblioteca</title>
     <link rel="stylesheet" href="styles.css?v=4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=7" defer></script>
+    <script src="app.js?v=8" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -50,6 +51,11 @@
         <div id="demo-banner" class="demo-banner" hidden>
           Modalità demo: questi libri sono esempi e non vengono salvati né condivisi.
         </div>
+        <div class="view-switch" role="group" aria-label="Sezione libreria">
+          <button id="section-books" class="view-switch-button is-active" type="button" aria-pressed="true">Libri</button>
+          <button id="section-settings" class="view-switch-button" type="button" aria-pressed="false">Impostazioni</button>
+        </div>
+        <div id="library-books">
         <div class="hero">
           <div>
             <span class="eyebrow">IL TUO SPAZIO DI LETTURA</span>
@@ -86,6 +92,21 @@
         </div>
         <div id="status" class="status" role="status"></div>
         <div id="book-grid" class="book-grid"></div>
+        </div>
+        <section id="library-settings" class="settings-panel" hidden>
+          <span class="eyebrow">GESTISCI LA TUA COLLEZIONE</span>
+          <h1>Impostazioni</h1>
+          <article class="settings-card">
+            <h2>Importa un backup</h2>
+            <p>Seleziona un backup JSON o ZIP esportato dall’app. I nuovi libri saranno aggiunti; i duplicati non sovrascrivono quelli già presenti. Nessun libro esistente verrà eliminato.</p>
+            <form id="backup-form" class="backup-form">
+              <label for="backup-file">File di backup</label>
+              <input id="backup-file" name="backup" type="file" accept=".json,.zip,application/json,application/zip" required>
+              <button id="import-backup" class="button button-primary" type="submit">Importa backup</button>
+              <p id="backup-message" class="message" role="status"></p>
+            </form>
+          </article>
+        </section>
       </section>
     </main>
 
@@ -118,7 +139,7 @@
             <option value="reading">In corso</option>
             <option value="read">Letto</option>
           </select>
-          <label for="edit-book-color">Colore</label>
+          <label for="edit-book-color">Colore del post-it</label>
           <input id="edit-book-color" name="color" type="color">
           <label for="edit-book-location">Posizione</label>
           <input id="edit-book-location" name="location" maxlength="250">
@@ -135,6 +156,7 @@
             <button id="cancel-edit-book" class="button button-quiet" type="button">Annulla</button>
             <button id="save-edit-book" class="button button-primary" type="submit">Salva modifiche</button>
           </div>
+          <button id="delete-book" class="button button-danger" type="button">Elimina libro</button>
         </form>
       </div>
     </dialog>
@@ -167,6 +189,8 @@
           <option value="reading">In corso</option>
           <option value="read">Letto</option>
         </select>
+        <label for="book-color">Colore del post-it</label>
+        <input id="book-color" name="color" type="color" value="#8D6E63">
         <label for="book-location">Posizione</label>
         <input id="book-location" name="location" maxlength="250">
         <label for="book-isbn">ISBN</label>

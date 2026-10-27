@@ -110,7 +110,10 @@ flutter build appbundle --flavor standard --release
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
    account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
    aggiungere libri, modificare i dati dalla scheda di un libro, consultare gli
-   ultimi dieci inserimenti e usare **Aggiorna** per rileggere le modifiche
+   ultimi dieci inserimenti, cambiare il colore del post-it ed eliminare libri
+   dalla scheda. In **Impostazioni** puoi importare un backup JSON o ZIP:
+   l'importazione aggiunge i libri mancanti e non cancella quelli già presenti.
+   Usa **Aggiorna** per rileggere le modifiche
    dell'app. Il sito ricarica i dati
    all'accesso e su richiesta con **Aggiorna**, evitando richieste automatiche
    ripetute da più schede aperte. Sito e app segnalano con un indicatore

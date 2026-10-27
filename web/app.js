@@ -11,6 +11,8 @@
   const details = document.querySelector('#book-detail-content');
   const editBookForm = document.querySelector('#edit-book-form');
   const editBookMessage = document.querySelector('#edit-book-message');
+  const backupForm = document.querySelector('#backup-form');
+  const backupMessage = document.querySelector('#backup-message');
   const addBookDialog = document.querySelector('#add-book-dialog');
   const addBookForm = document.querySelector('#add-book-form');
   const addBookMessage = document.querySelector('#add-book-message');
@@ -166,7 +168,7 @@
       year: formData.get('year') ? Number(formData.get('year')) : null,
       pages: formData.get('pages') ? Number(formData.get('pages')) : null,
       status: String(formData.get('status') || 'to_read'),
-      color: '#8D6E63',
+      color: bookColor(formData.get('color')),
       location: String(formData.get('location') || '').trim() || null,
       isbn: String(formData.get('isbn') || '').trim() || null,
       cover_url: String(formData.get('cover_url') || '').trim() || null,
@@ -286,7 +288,7 @@
             ? `<img src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">`
             : '<span class="cover-symbol" aria-hidden="true">▤</span>'}
         </div>
-        <div class="book-info">
+        <div class="book-info" style="--book-color:${bookColor(book.color)}">
           <h2 class="book-title" title="${escapeHtml(book.title)}">
             ${escapeHtml(book.title)}${isNewBook(book) ? '<span class="new-book-mark">Nuovo</span>' : ''}
           </h2>
@@ -361,7 +363,7 @@
     details.innerHTML = `
       ${book.displayCover ? `<img class="detail-cover" src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">` : ''}
       <div class="detail-content">
-        <span class="eyebrow">${escapeHtml(book.theme || 'LIBRO')}</span>
+        <span class="eyebrow book-note-color" style="--book-color:${bookColor(book.color)}">${escapeHtml(book.theme || 'LIBRO')}</span>
         <h2>${escapeHtml(book.title)}</h2>
         <p>${escapeHtml(book.author)}</p>
         <p class="pill">${escapeHtml(formatStatus(book.status))}</p>
@@ -369,7 +371,7 @@
         ${book.location ? `<div class="detail-label">Posizione</div><p>${escapeHtml(book.location)}</p>` : ''}
         ${book.plot ? `<div class="detail-label">Trama</div><p>${escapeHtml(book.plot)}</p>` : ''}
         ${book.notes ? `<div class="detail-label">Note personali</div><p>${escapeHtml(book.notes)}</p>` : ''}
-        ${demoMode ? '' : '<button id="edit-book" class="button button-primary" type="button">Modifica scheda</button>'}
+        ${demoMode ? '' : '<div class="form-actions"><button id="edit-book" class="button button-primary" type="button">Modifica scheda</button><button id="delete-book-detail" class="button button-danger" type="button">Elimina libro</button></div>'}
       </div>`;
     editBookMessage.textContent = '';
     if (!demoMode) {
@@ -379,6 +381,7 @@
         editBookForm.hidden = false;
         document.querySelector('#edit-book-title').focus();
       });
+      document.querySelector('#delete-book-detail').addEventListener('click', deleteBook);
     }
     dialog.showModal();
   }
@@ -455,6 +458,314 @@
       editBookMessage.textContent = errorMessage(error, 'Impossibile salvare le modifiche.');
     } finally {
       saveButton.disabled = false;
+    }
+  }
+
+  function setLibrarySection(section) {
+    const showBooks = section === 'books';
+    document.querySelector('#library-books').hidden = !showBooks;
+    document.querySelector('#library-settings').hidden = showBooks;
+    for (const [id, selected] of [
+      ['section-books', showBooks],
+      ['section-settings', !showBooks],
+    ]) {
+      const button = document.querySelector(`#${id}`);
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    }
+  }
+
+  function backupBookList(decoded) {
+    if (Array.isArray(decoded)) return decoded;
+    if (decoded && typeof decoded === 'object') {
+      if (Array.isArray(decoded.books)) return decoded.books;
+      if (Array.isArray(decoded.data)) return decoded.data;
+    }
+    return null;
+  }
+
+  function normalizeArchivePath(value) {
+    const path = String(value || '').split('?')[0].replace(/\\/g, '/');
+    let decoded = path;
+    try {
+      decoded = decodeURIComponent(path);
+    } catch {
+      // Keep the original path when a backup contains malformed URL escapes.
+    }
+    return decoded.replace(/^\/+/, '').toLocaleLowerCase('en');
+  }
+
+  function findArchiveCover(zip, reference) {
+    const normalized = normalizeArchivePath(reference);
+    if (!normalized) return null;
+    const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+    return entries.find((entry) => normalizeArchivePath(entry.name) === normalized) ||
+      entries.find((entry) => normalizeArchivePath(entry.name).endsWith(`/${normalized}`)) ||
+      entries.find((entry) =>
+        normalizeArchivePath(entry.name).split('/').pop() === normalized.split('/').pop(),
+      ) || null;
+  }
+
+  function decodeCoverData(value) {
+    const encoded = String(value || '');
+    const dataUrl = encoded.match(/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/is);
+    const base64 = dataUrl ? dataUrl[2] : encoded.includes(',')
+      ? encoded.slice(encoded.indexOf(',') + 1)
+      : encoded;
+    const binary = atob(base64);
+    if (binary.length > 20 * 1024 * 1024) {
+      throw new Error('Una copertina supera il limite di 20 MB.');
+    }
+    return {
+      bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)),
+      contentType: dataUrl?.[1] || 'image/jpeg',
+      filename: 'copertina.jpg',
+    };
+  }
+
+  async function resolveBackupCover(data, zip) {
+    const base64Cover = data.cover_data ?? data.cover_base64 ?? data.image_base64;
+    if (typeof base64Cover === 'string' && base64Cover.trim()) {
+      return decodeCoverData(base64Cover.trim());
+    }
+    const reference = [
+      data.cover_file, data.cover_filename, data.cover_url, data.coverUrl,
+      data.cover_path, data.cover, data.image, data.image_url, data.imageUrl,
+      data.image_path, data.image_filename, data.thumbnail_url, data.thumbnail,
+    ].find((value) => typeof value === 'string' && value.trim());
+    if (!reference) return null;
+    if (/^https?:\/\//i.test(reference)) return { url: reference };
+    const entry = findArchiveCover(zip, reference);
+    if (!entry) return null;
+    if (entry._data?.uncompressedSize > 20 * 1024 * 1024) {
+      throw new Error('Una copertina supera il limite di 20 MB.');
+    }
+    const bytes = await entry.async('uint8array');
+    if (bytes.length > 20 * 1024 * 1024) {
+      throw new Error('Una copertina supera il limite di 20 MB.');
+    }
+    const extension = entry.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const contentTypes = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      webp: 'image/webp', gif: 'image/gif', avif: 'image/avif',
+    };
+    return {
+      bytes,
+      contentType: contentTypes[extension] || 'application/octet-stream',
+      filename: entry.name.split('/').pop() || 'copertina.jpg',
+    };
+  }
+
+  async function readBackupFile(file) {
+    if (file.size > 512 * 1024 * 1024) {
+      throw new Error('Il backup supera il limite di 512 MB.');
+    }
+    if (/\.zip$/i.test(file.name)) {
+      const zip = await window.JSZip.loadAsync(file);
+      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+      const expandedSize = entries.reduce(
+        (total, entry) => total + (entry._data?.uncompressedSize || 0), 0,
+      );
+      if (expandedSize > 512 * 1024 * 1024) {
+        throw new Error('Il contenuto del backup ZIP supera il limite di 512 MB.');
+      }
+      for (const entry of entries) {
+        if (!entry.name.toLowerCase().endsWith('.json') ||
+            entry._data?.uncompressedSize > 128 * 1024 * 1024) continue;
+        try {
+          const decoded = JSON.parse(await entry.async('text'));
+          if (backupBookList(decoded)) return { decoded, zip };
+        } catch (error) {
+          if (error instanceof SyntaxError) continue;
+          throw error;
+        }
+      }
+      throw new Error('Nel file ZIP non è stato trovato un backup JSON con i libri.');
+    }
+    if (file.size > 128 * 1024 * 1024) {
+      throw new Error('Il file JSON supera il limite di 128 MB.');
+    }
+    const decoded = JSON.parse(await file.text());
+    if (!backupBookList(decoded)) {
+      throw new Error('Il backup non contiene una lista di libri.');
+    }
+    return { decoded, zip: null };
+  }
+
+  function sameBookForImport(existing, incoming) {
+    if (String(existing.title || '').trim().toLocaleLowerCase('it') !==
+        incoming.title.toLocaleLowerCase('it') ||
+        String(existing.author || '').trim().toLocaleLowerCase('it') !==
+        incoming.author.toLocaleLowerCase('it')) return false;
+    const oldIsbn = String(existing.isbn || '').replace(/[^0-9x]/gi, '').toLowerCase();
+    const newIsbn = String(incoming.isbn || '').replace(/[^0-9x]/gi, '').toLowerCase();
+    if (oldIsbn && newIsbn && oldIsbn !== newIsbn) return false;
+    if (existing.year && incoming.year && Number(existing.year) !== incoming.year) return false;
+    if (existing.pages && incoming.pages && Number(existing.pages) !== incoming.pages) return false;
+    return true;
+  }
+
+  async function uploadBackupCover(cover, userId) {
+    if (!cover) return { cover_url: null, cover_path: null };
+    if (cover.url) return { cover_url: cover.url, cover_path: null };
+    const safeName = cover.filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100);
+    const path = `${userId}/${crypto.randomUUID()}-${safeName || 'cover.jpg'}`;
+    const { error } = await client.storage.from('book-covers').upload(path, cover.bytes, {
+      contentType: cover.contentType,
+      upsert: false,
+    });
+    if (error) throw error;
+    return { cover_url: null, cover_path: path };
+  }
+
+  async function importBackup(event) {
+    event.preventDefault();
+    const user = client?.auth.currentUser;
+    const file = document.querySelector('#backup-file').files?.[0];
+    if (demoMode || !user) {
+      backupMessage.textContent = 'Accedi al tuo account per importare un backup.';
+      return;
+    }
+    if (!file) {
+      backupMessage.textContent = 'Seleziona un file JSON o ZIP.';
+      return;
+    }
+
+    const importButton = document.querySelector('#import-backup');
+    importButton.disabled = true;
+    backupMessage.textContent = 'Lettura e importazione del backup…';
+    try {
+      const { decoded, zip } = await readBackupFile(file);
+      const rawBooks = backupBookList(decoded);
+      const prepared = [];
+      for (const raw of rawBooks) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+          throw new Error('Un elemento del backup non è valido.');
+        }
+        const title = String(raw.title || '').trim();
+        const author = String(raw.author || '').trim();
+        if (!title || !author) {
+          throw new Error('Ogni libro deve avere titolo e autore.');
+        }
+        const status = ['to_read', 'reading', 'read'].includes(raw.status)
+          ? raw.status
+          : 'to_read';
+        const year = raw.year === null || raw.year === '' || raw.year === undefined
+          ? null : Number(raw.year);
+        const pages = raw.pages === null || raw.pages === '' || raw.pages === undefined
+          ? null : Number(raw.pages);
+        if ((year !== null && (!Number.isInteger(year) || year < 0 || year > 9999)) ||
+            (pages !== null && (!Number.isInteger(pages) || pages < 1 || pages > 100000))) {
+          throw new Error(`Anno o numero di pagine non valido per "${title}".`);
+        }
+        prepared.push({
+          title,
+          author,
+          theme: String(raw.theme || '').trim(),
+          year,
+          pages,
+          status,
+          color: bookColor(raw.color),
+          location: String(raw.location || '').trim() || null,
+          isbn: String(raw.isbn || '').trim() || null,
+          plot: String(raw.plot || '').trim() || null,
+          notes: String(raw.notes || '').trim() || null,
+          created_at: raw.created_at && Number.isFinite(Date.parse(raw.created_at))
+            ? new Date(raw.created_at).toISOString()
+            : new Date().toISOString(),
+          cover: await resolveBackupCover(raw, zip),
+        });
+      }
+
+      const toInsert = [];
+      const toUpdateCovers = [];
+      const knownBooks = [...books];
+      let duplicates = 0;
+      for (const incoming of prepared) {
+        const existing = knownBooks.find((book) => sameBookForImport(book, incoming));
+        if (!existing) {
+          const { cover: incomingCover, ...bookData } = incoming;
+          const cover = await uploadBackupCover(incomingCover, user.id);
+          const record = {
+            ...bookData,
+            ...cover,
+            id: crypto.randomUUID(),
+            user_id: user.id,
+            updated_at: new Date().toISOString(),
+            deleted_at: null,
+          };
+          toInsert.push(record);
+          knownBooks.push(record);
+          continue;
+        }
+        duplicates++;
+        if (!existing.cover_url && !existing.cover_path && incoming.cover) {
+          const cover = await uploadBackupCover(incoming.cover, user.id);
+          toUpdateCovers.push({ id: existing.id, ...cover });
+        }
+      }
+
+      if (toUpdateCovers.length) {
+        for (const coverUpdate of toUpdateCovers) {
+          const { id, ...cover } = coverUpdate;
+          const { error } = await client.from('books').update(cover)
+            .eq('user_id', user.id).eq('id', id).is('deleted_at', null);
+          if (error) throw error;
+        }
+      }
+      if (toInsert.length) {
+        const { error } = await client.from('books').insert(toInsert);
+        if (error) throw error;
+      }
+      backupForm.reset();
+      backupMessage.textContent =
+        `Importazione completata: ${toInsert.length} ${toInsert.length === 1 ? 'libro aggiunto' : 'libri aggiunti'}, ${duplicates} ${duplicates === 1 ? 'duplicato ignorato' : 'duplicati ignorati'}.`;
+      if (toInsert.length || toUpdateCovers.length) {
+        try {
+          await loadBooks();
+        } catch (error) {
+          statusMessage.textContent = `Backup importato, ma aggiornamento della vista non riuscito: ${errorMessage(error, 'riprova con Aggiorna.')}`;
+        }
+      }
+    } catch (error) {
+      backupMessage.textContent = errorMessage(error, 'Impossibile importare il backup.');
+    } finally {
+      importButton.disabled = false;
+    }
+  }
+
+  async function deleteBook(event) {
+    const user = client?.auth.currentUser;
+    const book = books.find((item) => item.id === activeBookId);
+    if (demoMode || !user || !book) {
+      editBookMessage.textContent = 'Accedi al tuo account per eliminare libri.';
+      return;
+    }
+    if (!window.confirm(`Vuoi eliminare "${book.title}" dalla tua libreria?`)) return;
+
+    const deleteButton = event.currentTarget;
+    deleteButton.disabled = true;
+    editBookMessage.textContent = '';
+    try {
+      const { error } = await client.from('books')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('id', book.id)
+        .is('deleted_at', null)
+        .select('id')
+        .single();
+      if (error) throw error;
+      books = books.filter((item) => item.id !== book.id);
+      dialog.close();
+      renderThemeOptions();
+      renderStats();
+      renderLatestNotice();
+      renderBooks();
+      statusMessage.textContent = 'Libro eliminato dalla libreria.';
+    } catch (error) {
+      editBookMessage.textContent = errorMessage(error, 'Impossibile eliminare il libro.');
+    } finally {
+      deleteButton.disabled = false;
     }
   }
 
@@ -558,6 +869,12 @@
     setLibraryViewMode('latest');
     renderBooks();
   });
+  document.querySelector('#section-books').addEventListener('click', () => {
+    setLibrarySection('books');
+  });
+  document.querySelector('#section-settings').addEventListener('click', () => {
+    setLibrarySection('settings');
+  });
   document.querySelector('#add-book').addEventListener('click', () => {
     if (demoMode) {
       statusMessage.textContent = 'La demo è di sola consultazione. Accedi per aggiungere libri.';
@@ -578,10 +895,12 @@
     const book = books.find((item) => item.id === activeBookId);
     if (book) showBook(book);
   });
+  document.querySelector('#delete-book').addEventListener('click', deleteBook);
   editBookForm.addEventListener('submit', editBook);
   editBookForm.addEventListener('input', () => {
     editBookMessage.textContent = '';
   });
+  backupForm.addEventListener('submit', importBackup);
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
