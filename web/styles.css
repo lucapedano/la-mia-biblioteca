@@ -62,9 +62,14 @@ select, input[type=email], input[type=password] { border: 1px solid var(--line);
 .new-book-mark { display: inline-block; margin-left: 7px; border-radius: 20px; padding: 3px 7px; background: #c62828; color: white; font-size: 10px; font-weight: 700; vertical-align: middle; animation: notice-glow 1.1s ease-in-out infinite alternate; }
 @keyframes notice-glow { from { box-shadow: 0 0 2px #c6282880; } to { box-shadow: 0 0 12px #c62828; } }
 .book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; padding: 4px 0 60px; }
-.theme-card { position: relative; display: flex; min-height: 155px; flex-direction: column; align-items: flex-start; justify-content: flex-end; overflow: hidden; padding: 20px 17px; border: 0; border-radius: 4px; background: var(--theme-color); color: var(--theme-text); text-align: left; box-shadow: 0 3px 8px #28291b24; transition: transform .16s ease, box-shadow .16s ease; }
+.theme-card { position: relative; display: flex; min-height: 155px; overflow: hidden; border-radius: 4px; box-shadow: 0 3px 8px #28291b24; transition: transform .16s ease, box-shadow .16s ease; }
 .theme-card:hover { transform: translateY(-3px); box-shadow: 0 9px 18px #28291b2b; }
 .theme-card:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.theme-open { position: relative; z-index: 0; display: flex; width: 100%; min-height: inherit; flex-direction: column; align-items: flex-start; justify-content: flex-end; border: 0; padding: 48px 17px 20px; background: var(--theme-color); color: var(--theme-text); text-align: left; }
+.theme-card-tools { z-index: 2; }
+.move-theme-button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-weight: 700; }
+.move-theme-button:hover { background: #e8eee8; }
+.theme-card.is-dragging { opacity: .45; }
 .theme-fold { position: absolute; top: 0; right: 0; width: 23px; height: 23px; background: linear-gradient(225deg, #0005 50%, transparent 51%); }
 .theme-label { z-index: 1; max-width: 100%; overflow: hidden; font-size: 17px; font-weight: 700; text-overflow: ellipsis; }
 .theme-count { z-index: 1; margin-top: 4px; color: currentColor; font-size: 13px; opacity: .82; }
@@ -130,6 +135,8 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
   .account .button { padding: 0 10px; }
   .book-card-tools { top: 6px; right: 6px; gap: 1px; }
   .move-book-button { width: 25px; height: 25px; }
+  .theme-card-tools { top: 6px; right: 6px; gap: 1px; }
+  .move-theme-button { width: 25px; height: 25px; }
   .hero { padding-top: 38px; }
   .hero { align-items: start; gap: 16px; flex-direction: column; }
   .hero-actions { width: 100%; }
@@ -141,7 +148,8 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
   .view-switch { width: 100%; }
   .view-switch-button { flex: 1; padding: 0 9px; }
   .book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .theme-card { min-height: 135px; padding: 16px 13px; }
+  .theme-card { min-height: 135px; }
+  .theme-open { padding: 48px 13px 16px; }
   .book-info { padding: 11px; }
   .settings-panel { padding-top: 20px; }
   .settings-card { padding: 18px; }

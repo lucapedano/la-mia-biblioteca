@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f5f0">
     <title>La mia Biblioteca</title>
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles.css?v=6">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=9" defer></script>
+    <script src="app.js?v=10" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -87,7 +87,7 @@
             Ultimi inseriti <span id="latest-notice" class="latest-notice" hidden>Nuovi</span>
           </button>
         </div>
-        <p id="order-hint" class="order-hint" hidden>Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.</p>
+        <p id="order-hint" class="order-hint" hidden></p>
         <div id="status" class="status" role="status"></div>
         <div id="book-grid" class="book-grid"></div>
         </div>

@@ -92,8 +92,17 @@
     return userId ? `la-mia-biblioteca:book-order:${userId}` : null;
   }
 
+  function getThemeOrderKey() {
+    const userId = client?.auth.currentUser?.id || (demoMode ? 'demo' : null);
+    return userId ? `la-mia-biblioteca:theme-order:${userId}` : null;
+  }
+
   function setOrderHint() {
-    document.querySelector('#order-hint').hidden = libraryViewMode !== 'books';
+    const hint = document.querySelector('#order-hint');
+    hint.hidden = libraryViewMode === 'latest';
+    hint.textContent = libraryViewMode === 'themes'
+      ? 'Trascina le tematiche per riordinarle oppure usa le frecce. L’ordine è salvato in questo browser.'
+      : 'Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.';
   }
 
   function orderedBooks(source) {
@@ -147,6 +156,64 @@
     const index = displayedIds.indexOf(id);
     const targetId = displayedIds[index + offset];
     if (index >= 0 && targetId) moveBook(id, targetId, offset > 0);
+  }
+
+  function orderedThemes(source) {
+    const key = getThemeOrderKey();
+    if (!key) return [...source];
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(saved)) return [...source];
+      const order = new Map(saved.map((theme, index) => [String(theme), index]));
+      return [...source].sort((first, second) =>
+        (order.get(first.label) ?? Number.MAX_SAFE_INTEGER) -
+        (order.get(second.label) ?? Number.MAX_SAFE_INTEGER),
+      );
+    } catch (error) {
+      statusMessage.textContent = `Impossibile leggere l’ordine delle tematiche: ${error.message}`;
+      return [...source];
+    }
+  }
+
+  function saveThemeOrder(labels) {
+    const key = getThemeOrderKey();
+    if (!key) return false;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      const remaining = Array.isArray(saved)
+        ? saved.filter((label) => !labels.includes(String(label))).map(String)
+        : [];
+      localStorage.setItem(key, JSON.stringify([...labels, ...remaining]));
+      return true;
+    } catch (error) {
+      statusMessage.textContent = `Ordine delle tematiche non salvato in questo browser: ${error.message}`;
+      return false;
+    }
+  }
+
+  function moveTheme(sourceLabel, targetLabel, after = false) {
+    if (sourceLabel === targetLabel || libraryViewMode !== 'themes') return;
+    const displayed = [...grid.querySelectorAll('.theme-card')]
+      .map((card) => card.dataset.theme);
+    const sourceIndex = displayed.indexOf(sourceLabel);
+    const targetIndex = displayed.indexOf(targetLabel);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    displayed.splice(sourceIndex, 1);
+    let insertAt = displayed.indexOf(targetLabel);
+    if (after) insertAt += 1;
+    displayed.splice(insertAt, 0, sourceLabel);
+    if (saveThemeOrder(displayed)) {
+      renderBooks();
+      statusMessage.textContent = 'Ordine delle tematiche salvato in questo browser.';
+    }
+  }
+
+  function moveThemeBy(label, offset) {
+    const displayed = [...grid.querySelectorAll('.theme-card')]
+      .map((card) => card.dataset.theme);
+    const index = displayed.indexOf(label);
+    const target = displayed[index + offset];
+    if (index >= 0 && target !== undefined) moveTheme(label, target, offset > 0);
   }
 
   async function coverUrl(book) {
@@ -257,6 +324,7 @@
 
   function enterDemo() {
     demoMode = true;
+    setOrderHint();
     books = demoBooks.map((book, index) => ({
       ...book,
       created_at: new Date(Date.now() - index * 60 * 60 * 1000).toISOString(),
@@ -287,6 +355,7 @@
         ...book,
         displayCover: await coverUrl(book),
       })));
+      setOrderHint();
       renderThemeOptions();
       renderStats();
       renderLatestNotice();
@@ -419,20 +488,53 @@
       }
       groups.get(label).count += 1;
     });
-    const sortedGroups = [...groups.values()].sort((first, second) =>
+    const sortedGroups = orderedThemes([...groups.values()].sort((first, second) =>
       second.count - first.count || first.label.localeCompare(second.label, 'it'),
-    );
+    ));
 
     grid.innerHTML = sortedGroups.map((group) => `
-      <button class="theme-card" type="button" data-theme="${escapeHtml(group.label)}"
-        style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
+      <article class="theme-card" data-theme="${escapeHtml(group.label)}" draggable="true">
         <span class="theme-fold" aria-hidden="true"></span>
-        <span class="theme-label">${escapeHtml(group.label)}</span>
-        <span class="theme-count">${group.count} ${group.count === 1 ? 'libro' : 'libri'}</span>
-      </button>`).join('');
+        <div class="theme-card-tools">
+          <span class="drag-handle" aria-hidden="true" title="Trascina per spostare">⠿</span>
+          <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima">↑</button>
+          <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo">↓</button>
+        </div>
+        <button class="theme-open" type="button" data-theme="${escapeHtml(group.label)}"
+          style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
+          <span class="theme-label">${escapeHtml(group.label)}</span>
+          <span class="theme-count">${group.count} ${group.count === 1 ? 'libro' : 'libri'}</span>
+        </button>
+      </article>`).join('');
+    grid.querySelectorAll('.move-theme-button').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const label = button.closest('.theme-card').dataset.theme;
+        moveThemeBy(label, Number(button.dataset.move));
+      });
+    });
     grid.querySelectorAll('.theme-card').forEach((card) => {
-      card.addEventListener('click', () => {
-        document.querySelector('#theme-filter').value = card.dataset.theme;
+      card.addEventListener('dragstart', (event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', card.dataset.theme);
+        card.classList.add('is-dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
+      card.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+      card.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const source = event.dataTransfer.getData('text/plain');
+        const bounds = card.getBoundingClientRect();
+        const after = event.clientY > bounds.top + bounds.height / 2;
+        moveTheme(source, card.dataset.theme, after);
+      });
+    });
+    grid.querySelectorAll('.theme-open').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelector('#theme-filter').value = button.dataset.theme;
         setLibraryViewMode('books');
         renderBooks();
       });

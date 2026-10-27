@@ -113,7 +113,9 @@ flutter build appbundle --flavor standard --release
    ultimi dieci inserimenti, cambiare il colore del post-it ed eliminare libri
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**
    trascinandoli o usando le frecce. L’ordine è memorizzato nel browser usato
-   per il sito. Il pulsante **Impostazioni**, in alto a destra, permette di
+   per il sito. Nella pagina principale **Tematiche** puoi riordinare anche i
+   post-it delle tematiche trascinandoli o usando le frecce. Il pulsante
+   **Impostazioni**, in alto a destra, permette di
    importare un backup JSON o ZIP: l'importazione aggiunge i libri mancanti e
    non cancella quelli già presenti.
    Usa **Aggiorna** per rileggere le modifiche
