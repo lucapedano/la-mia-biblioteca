@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="styles.css?v=4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=6" defer></script>
+    <script src="app.js?v=7" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -91,7 +91,52 @@
 
     <dialog id="book-dialog">
       <button id="close-dialog" class="dialog-close" type="button" aria-label="Chiudi">×</button>
-      <div id="book-details"></div>
+      <div id="book-details">
+        <div id="book-detail-content"></div>
+        <form id="edit-book-form" class="book-form" hidden>
+          <span class="eyebrow">MODIFICA LA TUA COLLEZIONE</span>
+          <h2>Modifica libro</h2>
+          <label for="edit-book-title">Titolo *</label>
+          <input id="edit-book-title" name="title" required maxlength="250">
+          <label for="edit-book-author">Autore *</label>
+          <input id="edit-book-author" name="author" required maxlength="250">
+          <label for="edit-book-theme">Tematica *</label>
+          <input id="edit-book-theme" name="theme" required maxlength="120" list="theme-options">
+          <div class="form-row">
+            <div>
+              <label for="edit-book-year">Anno</label>
+              <input id="edit-book-year" name="year" type="number" min="0" max="9999">
+            </div>
+            <div>
+              <label for="edit-book-pages">Pagine</label>
+              <input id="edit-book-pages" name="pages" type="number" min="1" max="100000">
+            </div>
+          </div>
+          <label for="edit-book-status">Stato di lettura</label>
+          <select id="edit-book-status" name="status">
+            <option value="to_read">Da leggere</option>
+            <option value="reading">In corso</option>
+            <option value="read">Letto</option>
+          </select>
+          <label for="edit-book-color">Colore</label>
+          <input id="edit-book-color" name="color" type="color">
+          <label for="edit-book-location">Posizione</label>
+          <input id="edit-book-location" name="location" maxlength="250">
+          <label for="edit-book-isbn">ISBN</label>
+          <input id="edit-book-isbn" name="isbn" maxlength="32">
+          <label for="edit-book-cover-url">URL copertina</label>
+          <input id="edit-book-cover-url" name="cover_url" type="url" maxlength="2048" placeholder="https://…">
+          <label for="edit-book-plot">Trama</label>
+          <textarea id="edit-book-plot" name="plot" rows="3" maxlength="10000"></textarea>
+          <label for="edit-book-notes">Note</label>
+          <textarea id="edit-book-notes" name="notes" rows="3" maxlength="10000"></textarea>
+          <p id="edit-book-message" class="message" role="status"></p>
+          <div class="form-actions">
+            <button id="cancel-edit-book" class="button button-quiet" type="button">Annulla</button>
+            <button id="save-edit-book" class="button button-primary" type="submit">Salva modifiche</button>
+          </div>
+        </form>
+      </div>
     </dialog>
 
     <dialog id="add-book-dialog">

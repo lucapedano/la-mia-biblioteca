@@ -8,7 +8,9 @@
   const statusMessage = document.querySelector('#status');
   const grid = document.querySelector('#book-grid');
   const dialog = document.querySelector('#book-dialog');
-  const details = document.querySelector('#book-details');
+  const details = document.querySelector('#book-detail-content');
+  const editBookForm = document.querySelector('#edit-book-form');
+  const editBookMessage = document.querySelector('#edit-book-message');
   const addBookDialog = document.querySelector('#add-book-dialog');
   const addBookForm = document.querySelector('#add-book-form');
   const addBookMessage = document.querySelector('#add-book-message');
@@ -52,6 +54,7 @@
   let demoMode = false;
   let libraryViewMode = 'themes';
   let loadingBooks = false;
+  let activeBookId = null;
   const cloudConfigured = Boolean(
     config.url && config.anonKey &&
     !config.url.includes('YOUR_PROJECT') &&
@@ -352,6 +355,9 @@
 
   function showBook(book) {
     if (!book) return;
+    activeBookId = book.id;
+    details.hidden = false;
+    editBookForm.hidden = true;
     details.innerHTML = `
       ${book.displayCover ? `<img class="detail-cover" src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">` : ''}
       <div class="detail-content">
@@ -363,8 +369,93 @@
         ${book.location ? `<div class="detail-label">Posizione</div><p>${escapeHtml(book.location)}</p>` : ''}
         ${book.plot ? `<div class="detail-label">Trama</div><p>${escapeHtml(book.plot)}</p>` : ''}
         ${book.notes ? `<div class="detail-label">Note personali</div><p>${escapeHtml(book.notes)}</p>` : ''}
+        ${demoMode ? '' : '<button id="edit-book" class="button button-primary" type="button">Modifica scheda</button>'}
       </div>`;
+    editBookMessage.textContent = '';
+    if (!demoMode) {
+      document.querySelector('#edit-book').addEventListener('click', () => {
+        fillEditBookForm(book);
+        details.hidden = true;
+        editBookForm.hidden = false;
+        document.querySelector('#edit-book-title').focus();
+      });
+    }
     dialog.showModal();
+  }
+
+  function fillEditBookForm(book) {
+    for (const field of ['title', 'author', 'theme', 'status', 'location', 'isbn', 'plot', 'notes']) {
+      editBookForm.elements.namedItem(field).value = book[field] ?? '';
+    }
+    for (const field of ['year', 'pages']) {
+      editBookForm.elements.namedItem(field).value = book[field] ?? '';
+    }
+    editBookForm.elements.namedItem('color').value = bookColor(book.color);
+    editBookForm.elements.namedItem('cover_url').value = book.cover_url || '';
+  }
+
+  async function editBook(event) {
+    event.preventDefault();
+    const user = client?.auth.currentUser;
+    const book = books.find((item) => item.id === activeBookId);
+    if (demoMode || !user || !book) {
+      editBookMessage.textContent = 'Accedi al tuo account per modificare la libreria.';
+      return;
+    }
+    if (!editBookForm.reportValidity()) return;
+
+    const formData = new FormData(editBookForm);
+    const title = String(formData.get('title') || '').trim();
+    const author = String(formData.get('author') || '').trim();
+    const theme = String(formData.get('theme') || '').trim();
+    if (!title || !author || !theme) {
+      editBookMessage.textContent = 'Titolo, autore e tematica sono obbligatori.';
+      return;
+    }
+
+    const saveButton = document.querySelector('#save-edit-book');
+    saveButton.disabled = true;
+    editBookMessage.textContent = '';
+    const coverUrlValue = String(formData.get('cover_url') || '').trim() || null;
+    const update = {
+      title,
+      author,
+      theme,
+      year: formData.get('year') ? Number(formData.get('year')) : null,
+      pages: formData.get('pages') ? Number(formData.get('pages')) : null,
+      status: String(formData.get('status') || 'to_read'),
+      color: bookColor(formData.get('color')),
+      location: String(formData.get('location') || '').trim() || null,
+      isbn: String(formData.get('isbn') || '').trim() || null,
+      cover_url: coverUrlValue,
+      plot: String(formData.get('plot') || '').trim() || null,
+      notes: String(formData.get('notes') || '').trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+    if (coverUrlValue !== (book.cover_url || null)) update.cover_path = null;
+
+    try {
+      const { data, error } = await client.from('books')
+        .update(update)
+        .eq('user_id', user.id)
+        .eq('id', book.id)
+        .is('deleted_at', null)
+        .select('*')
+        .single();
+      if (error) throw error;
+      const updatedBook = { ...data, displayCover: await coverUrl(data) };
+      books = books.map((item) => item.id === updatedBook.id ? updatedBook : item);
+      renderThemeOptions();
+      renderStats();
+      renderLatestNotice();
+      renderBooks();
+      showBook(updatedBook);
+      statusMessage.textContent = 'Modifiche salvate.';
+    } catch (error) {
+      editBookMessage.textContent = errorMessage(error, 'Impossibile salvare le modifiche.');
+    } finally {
+      saveButton.disabled = false;
+    }
   }
 
   async function signIn(event) {
@@ -483,6 +574,14 @@
     if (event.target === addBookDialog) addBookDialog.close();
   });
   document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
+  document.querySelector('#cancel-edit-book').addEventListener('click', () => {
+    const book = books.find((item) => item.id === activeBookId);
+    if (book) showBook(book);
+  });
+  editBookForm.addEventListener('submit', editBook);
+  editBookForm.addEventListener('input', () => {
+    editBookMessage.textContent = '';
+  });
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
