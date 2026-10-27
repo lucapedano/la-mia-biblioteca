@@ -36,7 +36,6 @@ class LocalLibraryService {
   final Directory _coversDirectory;
   List<Book> _books = [];
   Timer? _automaticBackupTimer;
-  Timer? _cloudSyncTimer;
   bool _automaticBackupRunning = false;
   bool _automaticBackupPending = false;
   final SupabaseClient? _cloudClient;
@@ -84,11 +83,6 @@ class LocalLibraryService {
     if (client == null) return;
     _authSubscription = client.auth.onAuthStateChange.listen((state) {
       if (state.event == AuthChangeEvent.signedIn) {
-        unawaited(_syncInBackground());
-      }
-    });
-    _cloudSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      if (client.auth.currentUser != null) {
         unawaited(_syncInBackground());
       }
     });
@@ -276,7 +270,6 @@ class LocalLibraryService {
 
   void close() {
     _automaticBackupTimer?.cancel();
-    _cloudSyncTimer?.cancel();
     unawaited(_authSubscription?.cancel());
   }
 

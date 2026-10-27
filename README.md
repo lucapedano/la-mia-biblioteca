@@ -102,8 +102,9 @@ flutter build appbundle --flavor standard --release
    errore di rete le modifiche a un libro restano sul dispositivo: usa
    **Sincronizza adesso** quando la connessione ritorna. Per eliminare libri
    o svuotare la libreria mentre è attiva la sincronizzazione è necessaria la
-   connessione. Dopo aver effettuato l'accesso, l'app riprova a sincronizzare
-   automaticamente ogni cinque minuti mentre è aperta.
+   connessione. La libreria viene sincronizzata all'avvio, all'accesso e su
+   richiesta con **Sincronizza adesso**; l'app non interroga il database a
+   intervalli automatici.
 5. Inserisci lo stesso URL e la stessa chiave pubblica in
    [web/config.js](./web/config.js), poi pubblica il contenuto della cartella
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
