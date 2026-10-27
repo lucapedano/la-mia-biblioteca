@@ -111,8 +111,11 @@ flutter build appbundle --flavor standard --release
    account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
    aggiungere libri, modificare i dati dalla scheda di un libro, consultare gli
    ultimi dieci inserimenti, cambiare il colore del post-it ed eliminare libri
-   dalla scheda. In **Impostazioni** puoi importare un backup JSON o ZIP:
-   l'importazione aggiunge i libri mancanti e non cancella quelli già presenti.
+   dalla scheda e riordinare i post-it nella vista **Tutti i libri**
+   trascinandoli o usando le frecce. L’ordine è memorizzato nel browser usato
+   per il sito. Il pulsante **Impostazioni**, in alto a destra, permette di
+   importare un backup JSON o ZIP: l'importazione aggiunge i libri mancanti e
+   non cancella quelli già presenti.
    Usa **Aggiorna** per rileggere le modifiche
    dell'app. Il sito ricarica i dati
    all'accesso e su richiesta con **Aggiorna**, evitando richieste automatiche

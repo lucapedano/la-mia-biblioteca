@@ -23,7 +23,7 @@ button { cursor: pointer; }
 .topbar { height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); font-size: 17px; text-decoration: none; }
 .brand-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--green); color: white; font-size: 23px; }
-.account { display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 13px; }
+.account { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
 .hero { display: flex; align-items: end; justify-content: space-between; padding: 54px 0 28px; }
 .hero-actions { display: flex; gap: 10px; }
 .eyebrow { color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
@@ -68,8 +68,16 @@ select, input[type=email], input[type=password] { border: 1px solid var(--line);
 .theme-fold { position: absolute; top: 0; right: 0; width: 23px; height: 23px; background: linear-gradient(225deg, #0005 50%, transparent 51%); }
 .theme-label { z-index: 1; max-width: 100%; overflow: hidden; font-size: 17px; font-weight: 700; text-overflow: ellipsis; }
 .theme-count { z-index: 1; margin-top: 4px; color: currentColor; font-size: 13px; opacity: .82; }
-.book-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
+.book-card { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
+.book-card[draggable=true] { cursor: grab; }
+.book-card.is-dragging { opacity: .45; }
 .book-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px #28291b14; }
+.book-card-tools { position: absolute; z-index: 1; top: 8px; right: 8px; display: flex; align-items: center; gap: 3px; border-radius: 8px; padding: 3px; background: #fffefaed; box-shadow: 0 1px 5px #0002; }
+.drag-handle { padding: 0 4px; color: var(--muted); cursor: grab; font-size: 18px; line-height: 1; }
+.move-book-button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-weight: 700; }
+.move-book-button:hover:not(:disabled) { background: #e8eee8; }
+.move-book-button:disabled { cursor: default; opacity: .4; }
+.order-hint { margin: -4px 0 10px; color: var(--muted); font-size: 12px; }
 .cover { display: grid; place-items: center; aspect-ratio: 1.1 / 1; background: var(--cover, #8d6e63); color: #fff; overflow: hidden; }
 .cover img { width: 100%; height: 100%; object-fit: cover; }
 .cover-symbol { font-size: 45px; opacity: .8; }
@@ -118,6 +126,10 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
   .shell { width: min(100% - 28px, 1120px); }
   .topbar { height: 64px; }
   .account span { display: none; }
+  .account { gap: 8px; }
+  .account .button { padding: 0 10px; }
+  .book-card-tools { top: 6px; right: 6px; gap: 1px; }
+  .move-book-button { width: 25px; height: 25px; }
   .hero { padding-top: 38px; }
   .hero { align-items: start; gap: 16px; flex-direction: column; }
   .hero-actions { width: 100%; }

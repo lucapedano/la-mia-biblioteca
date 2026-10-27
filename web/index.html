@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f5f0">
     <title>La mia Biblioteca</title>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=8" defer></script>
+    <script src="app.js?v=9" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -20,6 +20,7 @@
         </a>
         <div id="account" class="account" hidden>
           <span id="account-email"></span>
+          <button id="settings-toggle" class="button button-secondary" type="button" aria-pressed="false">Impostazioni</button>
           <button id="sign-out" class="button button-quiet">Esci</button>
         </div>
       </header>
@@ -50,10 +51,6 @@
       <section id="library-view" hidden>
         <div id="demo-banner" class="demo-banner" hidden>
           Modalità demo: questi libri sono esempi e non vengono salvati né condivisi.
-        </div>
-        <div class="view-switch" role="group" aria-label="Sezione libreria">
-          <button id="section-books" class="view-switch-button is-active" type="button" aria-pressed="true">Libri</button>
-          <button id="section-settings" class="view-switch-button" type="button" aria-pressed="false">Impostazioni</button>
         </div>
         <div id="library-books">
         <div class="hero">
@@ -90,6 +87,7 @@
             Ultimi inseriti <span id="latest-notice" class="latest-notice" hidden>Nuovi</span>
           </button>
         </div>
+        <p id="order-hint" class="order-hint" hidden>Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.</p>
         <div id="status" class="status" role="status"></div>
         <div id="book-grid" class="book-grid"></div>
         </div>

@@ -87,6 +87,68 @@
       : '#FFFFFF';
   };
 
+  function getBookOrderKey() {
+    const userId = client?.auth.currentUser?.id || (demoMode ? 'demo' : null);
+    return userId ? `la-mia-biblioteca:book-order:${userId}` : null;
+  }
+
+  function setOrderHint() {
+    document.querySelector('#order-hint').hidden = libraryViewMode !== 'books';
+  }
+
+  function orderedBooks(source) {
+    const key = getBookOrderKey();
+    if (!key) return [...source];
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(saved)) return [...source];
+      const order = new Map(saved.map((id, index) => [String(id), index]));
+      return [...source].sort((first, second) =>
+        (order.get(first.id) ?? Number.MAX_SAFE_INTEGER) -
+        (order.get(second.id) ?? Number.MAX_SAFE_INTEGER),
+      );
+    } catch (error) {
+      statusMessage.textContent = `Impossibile leggere l’ordine salvato: ${error.message}`;
+      return [...source];
+    }
+  }
+
+  function saveBookOrder() {
+    const key = getBookOrderKey();
+    if (!key) return false;
+    try {
+      localStorage.setItem(key, JSON.stringify(books.map((book) => book.id)));
+      return true;
+    } catch (error) {
+      statusMessage.textContent = `Riordino non salvato in questo browser: ${error.message}`;
+      return false;
+    }
+  }
+
+  function moveBook(sourceId, targetId, after = false) {
+    if (sourceId === targetId || libraryViewMode !== 'books') return;
+    const sourceIndex = books.findIndex((book) => book.id === sourceId);
+    const targetIndex = books.findIndex((book) => book.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [book] = books.splice(sourceIndex, 1);
+    let insertAt = books.findIndex((item) => item.id === targetId);
+    if (insertAt < 0) return;
+    if (after) insertAt += 1;
+    books.splice(insertAt, 0, book);
+    const saved = saveBookOrder();
+    renderBooks();
+    if (saved) {
+      statusMessage.textContent = 'Ordine dei post-it salvato in questo browser.';
+    }
+  }
+
+  function moveBookBy(id, offset) {
+    const displayedIds = [...grid.querySelectorAll('.book-card')].map((card) => card.dataset.id);
+    const index = displayedIds.indexOf(id);
+    const targetId = displayedIds[index + offset];
+    if (index >= 0 && targetId) moveBook(id, targetId, offset > 0);
+  }
+
   async function coverUrl(book) {
     if (book.cover_url?.startsWith('http')) return book.cover_url;
     if (!book.cover_path) return '';
@@ -276,13 +338,18 @@
           (Date.parse(first.created_at || '') || 0),
         )
         .slice(0, 10)
-      : visible;
+      : orderedBooks(visible);
     renderBookCards(displayedBooks);
   }
 
   function renderBookCards(displayedBooks) {
     grid.innerHTML = displayedBooks.map((book) => `
-      <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" role="button">
+      <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" aria-label="Apri la scheda di ${escapeHtml(book.title)}" draggable="${libraryViewMode === 'books'}">
+        ${libraryViewMode === 'books' ? `<div class="book-card-tools">
+          <span class="drag-handle" aria-hidden="true" title="Trascina per spostare">⠿</span>
+          <button class="move-book-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(book.title)} prima">↑</button>
+          <button class="move-book-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(book.title)} dopo">↓</button>
+        </div>` : ''}
         <div class="cover" style="--cover:${bookColor(book.color)}">
           ${book.displayCover
             ? `<img src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">`
@@ -298,13 +365,47 @@
       </article>`,
     ).join('');
     grid.querySelectorAll('.book-card').forEach((card) => {
-      const open = () => showBook(books.find((book) => book.id === card.dataset.id));
+      const open = (event) => {
+        if (event.target.closest('.book-card-tools')) return;
+        showBook(books.find((book) => book.id === card.dataset.id));
+      };
       card.addEventListener('click', open);
       card.addEventListener('keydown', (event) => {
+        if (event.target !== card) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          open();
+          open(event);
         }
+      });
+      card.querySelectorAll('.move-book-button').forEach((button) => {
+        button.disabled = libraryViewMode !== 'books';
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          moveBookBy(card.dataset.id, Number(button.dataset.move));
+        });
+      });
+      card.addEventListener('dragstart', (event) => {
+        if (libraryViewMode !== 'books' || event.target.closest('button')) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', card.dataset.id);
+        card.classList.add('is-dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
+      card.addEventListener('dragover', (event) => {
+        if (libraryViewMode !== 'books') return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+      card.addEventListener('drop', (event) => {
+        if (libraryViewMode !== 'books') return;
+        event.preventDefault();
+        const sourceId = event.dataTransfer.getData('text/plain');
+        const after = event.clientY > card.getBoundingClientRect().top +
+          card.getBoundingClientRect().height / 2;
+        moveBook(sourceId, card.dataset.id, after);
       });
     });
   }
@@ -340,6 +441,7 @@
 
   function setLibraryViewMode(mode) {
     libraryViewMode = mode;
+    setOrderHint();
     if (mode === 'themes' || mode === 'latest') {
       document.querySelector('#theme-filter').value = '';
     }
@@ -465,14 +567,9 @@
     const showBooks = section === 'books';
     document.querySelector('#library-books').hidden = !showBooks;
     document.querySelector('#library-settings').hidden = showBooks;
-    for (const [id, selected] of [
-      ['section-books', showBooks],
-      ['section-settings', !showBooks],
-    ]) {
-      const button = document.querySelector(`#${id}`);
-      button.classList.toggle('is-active', selected);
-      button.setAttribute('aria-pressed', String(selected));
-    }
+    const button = document.querySelector('#settings-toggle');
+    button.textContent = showBooks ? 'Impostazioni' : 'Libri';
+    button.setAttribute('aria-pressed', String(!showBooks));
   }
 
   function backupBookList(decoded) {
@@ -869,11 +966,8 @@
     setLibraryViewMode('latest');
     renderBooks();
   });
-  document.querySelector('#section-books').addEventListener('click', () => {
-    setLibrarySection('books');
-  });
-  document.querySelector('#section-settings').addEventListener('click', () => {
-    setLibrarySection('settings');
+  document.querySelector('#settings-toggle').addEventListener('click', () => {
+    setLibrarySection(document.querySelector('#library-settings').hidden ? 'settings' : 'books');
   });
   document.querySelector('#add-book').addEventListener('click', () => {
     if (demoMode) {
