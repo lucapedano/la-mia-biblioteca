@@ -488,14 +488,6 @@
   });
 
   if (client) {
-    window.setInterval(() => {
-      if (demoMode || !client.auth.currentUser ||
-          document.visibilityState !== 'visible' || loadingBooks) return;
-      loadBooks().catch((error) => {
-        statusMessage.textContent = errorMessage(error, 'Aggiornamento non riuscito.');
-      });
-    }, 300_000);
-
     client.auth.getSession().then(async ({ data, error }) => {
       if (error) {
         loginMessage.textContent = error.message;

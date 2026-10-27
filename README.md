@@ -109,9 +109,10 @@ flutter build appbundle --flavor standard --release
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
    account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
    aggiungere libri, consultare gli ultimi dieci inserimenti e usare
-   **Aggiorna** per rileggere le modifiche dell'app. Sito e app segnalano con
-   un indicatore luminoso i libri aggiunti nelle ultime 24 ore; il sito
-   aggiorna la libreria automaticamente ogni cinque minuti mentre è aperto.
+   **Aggiorna** per rileggere le modifiche dell'app. Il sito ricarica i dati
+   all'accesso e su richiesta con **Aggiorna**, evitando richieste automatiche
+   ripetute da più schede aperte. Sito e app segnalano con un indicatore
+   luminoso i libri aggiunti nelle ultime 24 ore.
    Nell'app la nuova voce **Ultimi** si trova nella barra di navigazione in
    basso e mostra gli ultimi dieci libri.
 
