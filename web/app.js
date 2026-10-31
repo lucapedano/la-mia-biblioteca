@@ -226,8 +226,11 @@
     const displayed = [...grid.querySelectorAll('.theme-card')]
       .map((card) => card.dataset.theme);
     const index = displayed.indexOf(label);
-    const target = displayed[index + offset];
-    if (index >= 0 && target !== undefined) moveTheme(label, target, offset > 0);
+    if (index < 0 || displayed.length < 2) return;
+    const nextIndex = index + offset;
+    const target = displayed[(nextIndex + displayed.length) % displayed.length];
+    const wrapped = nextIndex < 0 || nextIndex >= displayed.length;
+    moveTheme(label, target, wrapped ? offset < 0 : offset > 0);
   }
 
   function cardAtPoint(kind, x, y) {
@@ -646,8 +649,8 @@
         <span class="theme-fold" aria-hidden="true"></span>
         <div class="theme-card-tools">
           <span class="drag-handle" title="Tieni premuto e trascina per spostare" aria-label="Tieni premuto e trascina per spostare ${escapeHtml(group.label)}">⠿</span>
-          <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima" ${index === 0 ? 'disabled title="È già la prima tematica"' : ''}>↑</button>
-          <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo" ${index === sortedGroups.length - 1 ? 'disabled title="È già l’ultima tematica"' : ''}>↓</button>
+          <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima" ${sortedGroups.length < 2 ? 'disabled title="Serve un’altra tematica per riordinare"' : ''}>↑</button>
+          <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo" ${sortedGroups.length < 2 ? 'disabled title="Serve un’altra tematica per riordinare"' : ''}>↓</button>
         </div>
         <button class="theme-open" type="button" data-theme="${escapeHtml(group.label)}"
           style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
