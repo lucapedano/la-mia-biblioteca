@@ -641,13 +641,13 @@
       second.count - first.count || first.label.localeCompare(second.label, 'it'),
     ));
 
-    grid.innerHTML = sortedGroups.map((group) => `
+    grid.innerHTML = sortedGroups.map((group, index) => `
       <article class="theme-card" data-theme="${escapeHtml(group.label)}">
         <span class="theme-fold" aria-hidden="true"></span>
         <div class="theme-card-tools">
           <span class="drag-handle" title="Tieni premuto e trascina per spostare" aria-label="Tieni premuto e trascina per spostare ${escapeHtml(group.label)}">⠿</span>
-          <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima">↑</button>
-          <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo">↓</button>
+          <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima" ${index === 0 ? 'disabled title="È già la prima tematica"' : ''}>↑</button>
+          <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo" ${index === sortedGroups.length - 1 ? 'disabled title="È già l’ultima tematica"' : ''}>↓</button>
         </div>
         <button class="theme-open" type="button" data-theme="${escapeHtml(group.label)}"
           style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
