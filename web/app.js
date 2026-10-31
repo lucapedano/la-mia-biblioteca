@@ -57,6 +57,7 @@
   let libraryViewMode = 'themes';
   let loadingBooks = false;
   let activeBookId = null;
+  let themeDrag = null;
   const cloudConfigured = Boolean(
     config.url && config.anonKey &&
     !config.url.includes('YOUR_PROJECT') &&
@@ -101,7 +102,7 @@
     const hint = document.querySelector('#order-hint');
     hint.hidden = libraryViewMode === 'latest';
     hint.textContent = libraryViewMode === 'themes'
-      ? 'Trascina le tematiche per riordinarle oppure usa le frecce. L’ordine è salvato in questo browser.'
+      ? 'Tieni premuta l’icona ⠿ e trascina una tematica; puoi anche usare le frecce. L’ordine è salvato in questo browser.'
       : 'Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.';
   }
 
@@ -215,6 +216,77 @@
     const target = displayed[index + offset];
     if (index >= 0 && target !== undefined) moveTheme(label, target, offset > 0);
   }
+
+  function themeAtPoint(x, y) {
+    const gridBounds = grid.getBoundingClientRect();
+    if (x < gridBounds.left || x > gridBounds.right ||
+        y < gridBounds.top || y > gridBounds.bottom) return null;
+    const cards = [...grid.querySelectorAll('.theme-card')];
+    const containing = cards.find((card) => {
+      const bounds = card.getBoundingClientRect();
+      return x >= bounds.left && x <= bounds.right &&
+        y >= bounds.top && y <= bounds.bottom;
+    });
+    if (containing) return containing;
+    return cards.reduce((nearest, card) => {
+      const bounds = card.getBoundingClientRect();
+      const dx = Math.max(bounds.left - x, 0, x - bounds.right);
+      const dy = Math.max(bounds.top - y, 0, y - bounds.bottom);
+      const distance = dx * dx + dy * dy;
+      return !nearest || distance < nearest.distance
+        ? { card, distance }
+        : nearest;
+    }, null)?.card || null;
+  }
+
+  grid.addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest('.drag-handle');
+    const card = handle?.closest('.theme-card');
+    if (!card || libraryViewMode !== 'themes' || event.button !== 0) return;
+    themeDrag = {
+      pointerId: event.pointerId,
+      source: card.dataset.theme,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+    };
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
+    if (!themeDrag.active &&
+        Math.hypot(event.clientX - themeDrag.startX, event.clientY - themeDrag.startY) >= 6) {
+      themeDrag.active = true;
+      [...grid.querySelectorAll('.theme-card')]
+        .find((card) => card.dataset.theme === themeDrag.source)
+        ?.classList.add('is-dragging');
+    }
+    if (!themeDrag.active) return;
+    event.preventDefault();
+    grid.querySelectorAll('.theme-card.is-drop-target')
+      .forEach((card) => card.classList.remove('is-drop-target'));
+    const target = themeAtPoint(event.clientX, event.clientY);
+    if (target && target.dataset.theme !== themeDrag.source) {
+      target.classList.add('is-drop-target');
+    }
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
+    const drag = themeDrag;
+    const target = drag.active ? themeAtPoint(event.clientX, event.clientY) : null;
+    const bounds = target?.getBoundingClientRect();
+    const after = bounds && event.clientY >= bounds.top + bounds.height / 2;
+    themeDrag = null;
+    grid.querySelectorAll('.theme-card.is-dragging, .theme-card.is-drop-target')
+      .forEach((card) => card.classList.remove('is-dragging', 'is-drop-target'));
+    if (!target || target.dataset.theme === drag.source) return;
+    moveTheme(drag.source, target.dataset.theme, after);
+  });
+  window.addEventListener('pointercancel', (event) => {
+    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
+    themeDrag = null;
+    grid.querySelectorAll('.theme-card.is-dragging, .theme-card.is-drop-target')
+      .forEach((card) => card.classList.remove('is-dragging', 'is-drop-target'));
+  });
 
   async function coverUrl(book) {
     if (book.cover_url?.startsWith('http')) return book.cover_url;
@@ -493,10 +565,10 @@
     ));
 
     grid.innerHTML = sortedGroups.map((group) => `
-      <article class="theme-card" data-theme="${escapeHtml(group.label)}" draggable="true">
+      <article class="theme-card" data-theme="${escapeHtml(group.label)}">
         <span class="theme-fold" aria-hidden="true"></span>
         <div class="theme-card-tools">
-          <span class="drag-handle" aria-hidden="true" title="Trascina per spostare">⠿</span>
+          <span class="drag-handle" title="Tieni premuto e trascina per spostare" aria-label="Tieni premuto e trascina per spostare ${escapeHtml(group.label)}">⠿</span>
           <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima">↑</button>
           <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo">↓</button>
         </div>
@@ -511,25 +583,6 @@
         event.stopPropagation();
         const label = button.closest('.theme-card').dataset.theme;
         moveThemeBy(label, Number(button.dataset.move));
-      });
-    });
-    grid.querySelectorAll('.theme-card').forEach((card) => {
-      card.addEventListener('dragstart', (event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', card.dataset.theme);
-        card.classList.add('is-dragging');
-      });
-      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
-      card.addEventListener('dragover', (event) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      });
-      card.addEventListener('drop', (event) => {
-        event.preventDefault();
-        const source = event.dataTransfer.getData('text/plain');
-        const bounds = card.getBoundingClientRect();
-        const after = event.clientY > bounds.top + bounds.height / 2;
-        moveTheme(source, card.dataset.theme, after);
       });
     });
     grid.querySelectorAll('.theme-open').forEach((button) => {

@@ -114,7 +114,8 @@ flutter build appbundle --flavor standard --release
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**
    trascinandoli o usando le frecce. L’ordine è memorizzato nel browser usato
    per il sito. Nella pagina principale **Tematiche** puoi riordinare anche i
-   post-it delle tematiche trascinandoli o usando le frecce. Il pulsante
+   post-it delle tematiche tenendo premuta l’icona di trascinamento oppure
+   usando le frecce. Il pulsante
    **Impostazioni**, in alto a destra, permette di
    importare un backup JSON o ZIP: l'importazione aggiunge i libri mancanti e
    non cancella quelli già presenti.
