@@ -57,7 +57,10 @@
   let libraryViewMode = 'themes';
   let loadingBooks = false;
   let activeBookId = null;
-  let themeDrag = null;
+  let cardDrag = null;
+  let coverRequestQueue = Promise.resolve();
+  const signedCoverUrls = new Map();
+  const pendingCoverUrls = new Map();
   const cloudConfigured = Boolean(
     config.url && config.anonKey &&
     !config.url.includes('YOUR_PROJECT') &&
@@ -102,7 +105,7 @@
     const hint = document.querySelector('#order-hint');
     hint.hidden = libraryViewMode === 'latest';
     hint.textContent = libraryViewMode === 'themes'
-      ? 'Tieni premuta l’icona ⠿ e trascina una tematica; puoi anche usare le frecce. L’ordine è salvato in questo browser.'
+      ? 'Trascina un post-it tematico in una nuova posizione oppure usa le frecce. L’ordine è salvato in questo browser.'
       : 'Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.';
   }
 
@@ -217,11 +220,12 @@
     if (index >= 0 && target !== undefined) moveTheme(label, target, offset > 0);
   }
 
-  function themeAtPoint(x, y) {
+  function cardAtPoint(kind, x, y) {
     const gridBounds = grid.getBoundingClientRect();
     if (x < gridBounds.left || x > gridBounds.right ||
         y < gridBounds.top || y > gridBounds.bottom) return null;
-    const cards = [...grid.querySelectorAll('.theme-card')];
+    const selector = kind === 'theme' ? '.theme-card' : '.book-card';
+    const cards = [...grid.querySelectorAll(selector)];
     const containing = cards.find((card) => {
       const bounds = card.getBoundingClientRect();
       return x >= bounds.left && x <= bounds.right &&
@@ -240,62 +244,135 @@
   }
 
   grid.addEventListener('pointerdown', (event) => {
-    const handle = event.target.closest('.drag-handle');
-    const card = handle?.closest('.theme-card');
-    if (!card || libraryViewMode !== 'themes' || event.button !== 0) return;
-    themeDrag = {
+    if (event.target.closest('.move-theme-button, .move-book-button')) return;
+    const themeCard = event.target.closest('.theme-card');
+    const bookCard = event.target.closest('.book-card');
+    const kind = themeCard ? 'theme' : bookCard ? 'book' : null;
+    const card = themeCard || bookCard;
+    if (!card || event.button !== 0 ||
+        (kind === 'theme' && libraryViewMode !== 'themes') ||
+        (kind === 'book' && libraryViewMode !== 'books')) return;
+    cardDrag = {
+      kind,
       pointerId: event.pointerId,
-      source: card.dataset.theme,
+      source: kind === 'theme' ? card.dataset.theme : card.dataset.id,
       startX: event.clientX,
       startY: event.clientY,
       active: false,
     };
   });
   window.addEventListener('pointermove', (event) => {
-    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
-    if (!themeDrag.active &&
-        Math.hypot(event.clientX - themeDrag.startX, event.clientY - themeDrag.startY) >= 6) {
-      themeDrag.active = true;
-      [...grid.querySelectorAll('.theme-card')]
-        .find((card) => card.dataset.theme === themeDrag.source)
+    if (!cardDrag || event.pointerId !== cardDrag.pointerId) return;
+    if (!cardDrag.active &&
+        Math.hypot(event.clientX - cardDrag.startX, event.clientY - cardDrag.startY) >= 6) {
+      cardDrag.active = true;
+      cardAtPoint(cardDrag.kind, cardDrag.startX, cardDrag.startY)
         ?.classList.add('is-dragging');
     }
-    if (!themeDrag.active) return;
+    if (!cardDrag.active) return;
     event.preventDefault();
-    grid.querySelectorAll('.theme-card.is-drop-target')
+    grid.querySelectorAll('.is-drop-target')
       .forEach((card) => card.classList.remove('is-drop-target'));
-    const target = themeAtPoint(event.clientX, event.clientY);
-    if (target && target.dataset.theme !== themeDrag.source) {
+    const target = cardAtPoint(cardDrag.kind, event.clientX, event.clientY);
+    const targetId = cardDrag.kind === 'theme' ? target?.dataset.theme : target?.dataset.id;
+    if (target && targetId !== cardDrag.source) {
       target.classList.add('is-drop-target');
     }
   });
   window.addEventListener('pointerup', (event) => {
-    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
-    const drag = themeDrag;
-    const target = drag.active ? themeAtPoint(event.clientX, event.clientY) : null;
+    if (!cardDrag || event.pointerId !== cardDrag.pointerId) return;
+    const drag = cardDrag;
+    const target = drag.active ? cardAtPoint(drag.kind, event.clientX, event.clientY) : null;
     const bounds = target?.getBoundingClientRect();
     const after = bounds && event.clientY >= bounds.top + bounds.height / 2;
-    themeDrag = null;
-    grid.querySelectorAll('.theme-card.is-dragging, .theme-card.is-drop-target')
+    cardDrag = null;
+    grid.querySelectorAll('.is-dragging, .is-drop-target')
       .forEach((card) => card.classList.remove('is-dragging', 'is-drop-target'));
-    if (!target || target.dataset.theme === drag.source) return;
-    moveTheme(drag.source, target.dataset.theme, after);
+    if (!target) return;
+    if (drag.kind === 'theme') {
+      if (target.dataset.theme !== drag.source) {
+        moveTheme(drag.source, target.dataset.theme, after);
+      }
+    } else if (target.dataset.id !== drag.source) {
+      moveBook(drag.source, target.dataset.id, after);
+    }
   });
   window.addEventListener('pointercancel', (event) => {
-    if (!themeDrag || event.pointerId !== themeDrag.pointerId) return;
-    themeDrag = null;
-    grid.querySelectorAll('.theme-card.is-dragging, .theme-card.is-drop-target')
+    if (!cardDrag || event.pointerId !== cardDrag.pointerId) return;
+    cardDrag = null;
+    grid.querySelectorAll('.is-dragging, .is-drop-target')
       .forEach((card) => card.classList.remove('is-dragging', 'is-drop-target'));
   });
 
   async function coverUrl(book) {
     if (book.cover_url?.startsWith('http')) return book.cover_url;
     if (!book.cover_path) return '';
-    const { data, error } = await client.storage.from('book-covers')
-      .createSignedUrl(book.cover_path, 3600);
-    if (error) throw error;
-    return data.signedUrl;
+    const cached = signedCoverUrls.get(book.cover_path);
+    if (cached && cached.expiresAt > Date.now()) return cached.url;
+    const pending = pendingCoverUrls.get(book.cover_path);
+    if (pending) return pending;
+
+    const request = coverRequestQueue.then(async () => {
+      const { data, error } = await client.storage.from('book-covers')
+        .createSignedUrl(book.cover_path, 3600);
+      if (error) throw error;
+      signedCoverUrls.set(book.cover_path, {
+        url: data.signedUrl,
+        expiresAt: Date.now() + 55 * 60 * 1000,
+      });
+      return data.signedUrl;
+    });
+    coverRequestQueue = request.catch(() => {});
+    pendingCoverUrls.set(book.cover_path, request);
+    try {
+      return await request;
+    } finally {
+      pendingCoverUrls.delete(book.cover_path);
+    }
   }
+
+  function showCoverError(book, error) {
+    statusMessage.textContent =
+      `Libro caricato; copertina non disponibile per "${book.title}": ${errorMessage(error, 'riprova più tardi.')}`;
+  }
+
+  async function loadBookCover(book, card) {
+    try {
+      const url = await coverUrl(book);
+      if (!url) return;
+      book.displayCover = url;
+      if (card?.isConnected) {
+        const cover = card.querySelector('.cover');
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = `Copertina di ${book.title}`;
+        cover.replaceChildren(image);
+      }
+      if (activeBookId === book.id && dialog.open &&
+          !details.querySelector('.detail-cover')) {
+        const image = document.createElement('img');
+        image.className = 'detail-cover';
+        image.src = url;
+        image.alt = `Copertina di ${book.title}`;
+        details.prepend(image);
+      }
+    } catch (error) {
+      showCoverError(book, error);
+    }
+  }
+
+  const coverObserver = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        const book = books.find((item) => item.id === entry.target.dataset.id);
+        if (book?.cover_path && !book.displayCover) {
+          void loadBookCover(book, entry.target);
+        }
+      }
+    }, { rootMargin: '120px' })
+    : null;
 
   function renderThemeOptions() {
     const selectedTheme = document.querySelector('#theme-filter').value;
@@ -423,10 +500,10 @@
         .is('deleted_at', null)
         .order('title', { ascending: true });
       if (error) throw error;
-      books = await Promise.all((data || []).map(async (book) => ({
+      books = (data || []).map((book) => ({
         ...book,
-        displayCover: await coverUrl(book),
-      })));
+        displayCover: book.cover_url?.startsWith('http') ? book.cover_url : '',
+      }));
       setOrderHint();
       renderThemeOptions();
       renderStats();
@@ -485,9 +562,9 @@
 
   function renderBookCards(displayedBooks) {
     grid.innerHTML = displayedBooks.map((book) => `
-      <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" aria-label="Apri la scheda di ${escapeHtml(book.title)}" draggable="${libraryViewMode === 'books'}">
+      <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" aria-label="Apri la scheda di ${escapeHtml(book.title)}">
         ${libraryViewMode === 'books' ? `<div class="book-card-tools">
-          <span class="drag-handle" aria-hidden="true" title="Trascina per spostare">⠿</span>
+          <span class="drag-handle" aria-label="Trascina per spostare ${escapeHtml(book.title)}" title="Trascina per spostare">⠿</span>
           <button class="move-book-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(book.title)} prima">↑</button>
           <button class="move-book-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(book.title)} dopo">↓</button>
         </div>` : ''}
@@ -525,29 +602,11 @@
           moveBookBy(card.dataset.id, Number(button.dataset.move));
         });
       });
-      card.addEventListener('dragstart', (event) => {
-        if (libraryViewMode !== 'books' || event.target.closest('button')) {
-          event.preventDefault();
-          return;
-        }
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', card.dataset.id);
-        card.classList.add('is-dragging');
-      });
-      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
-      card.addEventListener('dragover', (event) => {
-        if (libraryViewMode !== 'books') return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      });
-      card.addEventListener('drop', (event) => {
-        if (libraryViewMode !== 'books') return;
-        event.preventDefault();
-        const sourceId = event.dataTransfer.getData('text/plain');
-        const after = event.clientY > card.getBoundingClientRect().top +
-          card.getBoundingClientRect().height / 2;
-        moveBook(sourceId, card.dataset.id, after);
-      });
+      const book = books.find((item) => item.id === card.dataset.id);
+      if (book?.cover_path && !book.displayCover) {
+        if (coverObserver) coverObserver.observe(card);
+        else void loadBookCover(book, card);
+      }
     });
   }
 
