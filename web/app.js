@@ -62,6 +62,7 @@
     },
   ];
   let client;
+  let currentUser = null;
   let books = [];
   let demoMode = false;
   let libraryViewMode = 'themes';
@@ -102,12 +103,12 @@
   };
 
   function getBookOrderKey() {
-    const userId = client?.auth.currentUser?.id || (demoMode ? 'demo' : null);
+    const userId = currentUser?.id || (demoMode ? 'demo' : null);
     return userId ? `la-mia-biblioteca:book-order:${userId}` : null;
   }
 
   function getThemeOrderKey() {
-    const userId = client?.auth.currentUser?.id || (demoMode ? 'demo' : null);
+    const userId = currentUser?.id || (demoMode ? 'demo' : null);
     return userId ? `la-mia-biblioteca:theme-order:${userId}` : null;
   }
 
@@ -422,6 +423,7 @@
   }
 
   function showScreen(user) {
+    currentUser = user || null;
     const signedIn = Boolean(user);
     loginView.hidden = signedIn;
     libraryView.hidden = !signedIn;
@@ -432,7 +434,7 @@
 
   async function addBook(event) {
     event.preventDefault();
-    if (demoMode || !client?.auth.currentUser) {
+    if (demoMode || !currentUser) {
       addBookMessage.textContent = 'Accedi al tuo account per aggiungere libri alla libreria.';
       return;
     }
@@ -452,7 +454,7 @@
     const now = new Date().toISOString();
     const book = {
       id: crypto.randomUUID(),
-      user_id: client.auth.currentUser.id,
+      user_id: currentUser.id,
       title,
       author,
       theme,
@@ -745,7 +747,7 @@
 
   async function editBook(event) {
     event.preventDefault();
-    const user = client?.auth.currentUser;
+    const user = currentUser;
     const book = books.find((item) => item.id === activeBookId);
     if (demoMode || !user || !book) {
       editBookMessage.textContent = 'Accedi al tuo account per modificare la libreria.';
@@ -961,7 +963,7 @@
 
   async function importBackup(event) {
     event.preventDefault();
-    const user = client?.auth.currentUser;
+    const user = currentUser;
     const file = document.querySelector('#backup-file').files?.[0];
     if (demoMode || !user) {
       backupMessage.textContent = 'Accedi al tuo account per importare un backup.';
@@ -1076,7 +1078,7 @@
   }
 
   async function deleteBook(event) {
-    const user = client?.auth.currentUser;
+    const user = currentUser;
     const book = books.find((item) => item.id === activeBookId);
     if (demoMode || !user || !book) {
       editBookMessage.textContent = 'Accedi al tuo account per eliminare libri.';
