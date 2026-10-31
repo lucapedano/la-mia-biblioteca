@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f5f0">
     <title>La mia Biblioteca</title>
-    <link rel="stylesheet" href="styles.css?v=10">
+    <link rel="stylesheet" href="styles.css?v=11">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=16" defer></script>
+    <script src="app.js?v=17" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -72,6 +72,7 @@
           </label>
           <select id="status-filter" aria-label="Filtra per stato">
             <option value="">Tutti gli stati</option>
+            <option value="to_buy">Da acquistare</option>
             <option value="to_read">Da leggere</option>
             <option value="reading">In corso</option>
             <option value="read">Letto</option>
@@ -86,6 +87,7 @@
           <button id="view-latest" class="view-switch-button" type="button" aria-pressed="false">
             Ultimi inseriti <span id="latest-notice" class="latest-notice" hidden>Nuovi</span>
           </button>
+          <button id="view-purchase" class="view-switch-button" type="button" aria-pressed="false">Da acquistare</button>
         </div>
         <p id="order-hint" class="order-hint" hidden></p>
         <div id="status" class="status" role="status"></div>
@@ -131,8 +133,9 @@
               <input id="edit-book-pages" name="pages" type="number" min="1" max="100000">
             </div>
           </div>
-          <label for="edit-book-status">Stato di lettura</label>
+          <label for="edit-book-status">Stato del libro</label>
           <select id="edit-book-status" name="status">
+            <option value="to_buy">Da acquistare</option>
             <option value="to_read">Da leggere</option>
             <option value="reading">In corso</option>
             <option value="read">Letto</option>
@@ -181,8 +184,9 @@
             <input id="book-pages" name="pages" type="number" min="1" max="100000">
           </div>
         </div>
-        <label for="book-status">Stato di lettura</label>
+        <label for="book-status">Stato del libro</label>
         <select id="book-status" name="status">
+          <option value="to_buy">Da acquistare</option>
           <option value="to_read">Da leggere</option>
           <option value="reading">In corso</option>
           <option value="read">Letto</option>

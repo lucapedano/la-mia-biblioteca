@@ -76,6 +76,9 @@ flutter build appbundle --flavor standard --release
 1. Crea un progetto Supabase e apri il relativo SQL Editor.
 2. Esegui [supabase/schema.sql](./supabase/schema.sql) per creare la tabella
    privata dei libri, le policy di accesso e il bucket privato delle copertine.
+   Se il progetto Supabase esiste già, esegui anche
+   [la migrazione per i libri da acquistare](./supabase/migrations/20261031000000_add_to_buy_status.sql)
+   dal SQL Editor: aggiunge il nuovo stato senza modificare i libri esistenti.
 3. Copia il Project URL e la chiave pubblica `anon`/publishable del progetto.
    Non usare mai la chiave `service_role`.
 4. Nel progetto locale crea `supabase.local.json` (è escluso da Git) con
@@ -110,12 +113,18 @@ flutter build appbundle --flavor standard --release
    `web/` su un hosting statico HTTPS. Apri il sito e accedi con lo stesso
    account dell'app. Dal sito puoi consultare la libreria, filtrare per tematica,
    aggiungere libri, modificare i dati dalla scheda di un libro, consultare gli
-   ultimi dieci inserimenti, cambiare il colore del post-it ed eliminare libri
+   ultimi dieci inserimenti e usare la vista dedicata **Da acquistare**.
+   Nell'app la voce **Acquisti** apre la stessa lista; aggiungendo un libro da
+   quella scheda lo stato viene impostato automaticamente su **Da acquistare**.
+   Puoi cambiare lo stato dalla scheda del libro per spostarlo nella libreria.
+   Il sito permette anche di cambiare il colore del post-it ed eliminare libri
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**
    trascinandoli o usando le frecce. L’ordine è memorizzato nel browser usato
    per il sito. Nella pagina principale **Tematiche** puoi riordinare anche i
    post-it delle tematiche trascinandoli oppure usando le frecce. L’ordine è
-   memorizzato nel browser usato per il sito. Il pulsante
+   memorizzato nel browser usato per il sito; nell'app puoi riordinarle da
+   **Esplora → Riordina**, con l'ordine conservato sul dispositivo. Queste
+   preferenze di ordinamento non vengono sincronizzate tra app e sito. Il pulsante
    **Impostazioni**, in alto a destra, permette di
    importare un backup JSON o ZIP: l'importazione aggiunge i libri mancanti e
    non cancella quelli già presenti.
@@ -132,7 +141,7 @@ può essere presente nel client perché l'autorizzazione è applicata dalle poli
 RLS di Supabase.
 
 Per provare l'interfaccia senza configurare Supabase, apri il sito e scegli
-**Entra in modalità demo**. La demo mostra sei libri fittizi e permette di
+**Entra in modalità demo**. La demo mostra sette libri fittizi e permette di
 provare ricerca, filtri e dettagli; non usa account e non salva né invia dati.
 
 ### Installare la versione Cloud sul telefono senza collegarlo al PC

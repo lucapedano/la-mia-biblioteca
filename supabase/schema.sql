@@ -8,7 +8,8 @@ create table if not exists public.books (
   color text not null default '#8D6E63',
   pages integer,
   status text not null default 'to_read'
-    check (status in ('to_read', 'reading', 'read')),
+    constraint books_status_check
+    check (status in ('to_buy', 'to_read', 'reading', 'read')),
   plot text,
   notes text,
   location text,

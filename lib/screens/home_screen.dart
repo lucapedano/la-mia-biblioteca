@@ -10,7 +10,7 @@ import 'add_edit_book_screen.dart';
 import 'recent_books_screen.dart';
 import '../services/local_library_service.dart';
 
-/// Bottom-tab shell: Esplora, Tutti, Ultimi, Impostazioni + add-book FAB.
+/// Bottom-tab shell: Esplora, Tutti, Acquisti, Ultimi, Impostazioni.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -109,18 +109,28 @@ class _HomeScreenState extends State<HomeScreen>
           key: ValueKey('explore_$_refreshTick'),
           onOpenAll: () => setState(() => _index = 1)),
       AllBooksScreen(key: ValueKey('all_$_refreshTick')),
+      AllBooksScreen(
+        key: ValueKey('purchase_$_refreshTick'),
+        initialStatus: 'to_buy',
+        title: 'Libri da acquistare',
+        showStatusChips: false,
+      ),
       RecentBooksScreen(key: ValueKey('recent_$_refreshTick')),
       SettingsScreen(onLibraryChanged: _refresh),
     ];
 
     return Scaffold(
       body: SafeArea(child: pages[_index]),
-      floatingActionButton: _index == 3
+      floatingActionButton: _index == 4
           ? null
           : FloatingActionButton.extended(
               onPressed: () async {
                 final changed = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(builder: (_) => const AddEditBookScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => AddEditBookScreen(
+                      initialStatus: _index == 2 ? 'to_buy' : 'to_read',
+                    ),
+                  ),
                 );
                 if (changed == true) _refresh();
               },
@@ -132,9 +142,9 @@ class _HomeScreenState extends State<HomeScreen>
         onDestinationSelected: (i) {
           setState(() {
             _index = i;
-            if (i == 2) _refreshTick++;
+            if (i == 3) _refreshTick++;
           });
-          if (i == 2) unawaited(_loadRecentCount());
+          if (i == 3) unawaited(_loadRecentCount());
         },
         destinations: [
           const NavigationDestination(
@@ -145,6 +155,10 @@ class _HomeScreenState extends State<HomeScreen>
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book),
               label: 'Tutti'),
+          const NavigationDestination(
+              icon: Icon(Icons.shopping_bag_outlined),
+              selectedIcon: Icon(Icons.shopping_bag),
+              label: 'Acquisti'),
           NavigationDestination(
               icon: _recentTabIcon(Icons.new_releases_outlined),
               selectedIcon: _recentTabIcon(Icons.new_releases),

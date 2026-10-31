@@ -34,7 +34,7 @@ h1 { margin: 10px 0 8px; font: 700 clamp(32px, 5vw, 48px)/1.08 'Playfair Display
 .button-primary:hover { background: var(--green-dark); }
 .button-secondary { color: var(--green-dark); background: #e8eee8; }
 .button-quiet { color: var(--muted); background: transparent; padding: 0 4px; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
 .stat { padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .stat-value { display: block; font: 700 26px 'Playfair Display', serif; }
 .stat-label { margin-top: 4px; color: var(--muted); font-size: 12px; }

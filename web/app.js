@@ -17,7 +17,12 @@
   const addBookForm = document.querySelector('#add-book-form');
   const addBookMessage = document.querySelector('#add-book-message');
   const demoBanner = document.querySelector('#demo-banner');
-  const statusLabels = { to_read: 'Da leggere', reading: 'In corso', read: 'Letto' };
+  const statusLabels = {
+    to_buy: 'Da acquistare',
+    to_read: 'Da leggere',
+    reading: 'In corso',
+    read: 'Letto',
+  };
   const demoBooks = [
     {
       id: 'demo-1', title: 'Il giardino delle storie', author: 'Anna Bellini',
@@ -49,6 +54,11 @@
       id: 'demo-6', title: 'Cucina di stagione', author: 'Paolo Neri',
       theme: 'Cucina', year: 2022, pages: 160, status: 'reading',
       color: '#638b7d', location: 'Scaffale cucina', plot: 'Ricette e appunti per valorizzare ingredienti semplici durante tutto l’anno.',
+    },
+    {
+      id: 'demo-7', title: 'Il sentiero delle stelle', author: 'Giulia Serra',
+      theme: 'Avventura', year: 2024, pages: 288, status: 'to_buy',
+      color: '#7286a1', plot: 'Un viaggio da intraprendere tra mappe, incontri e luoghi sconosciuti.',
     },
   ];
   let client;
@@ -103,7 +113,7 @@
 
   function setOrderHint() {
     const hint = document.querySelector('#order-hint');
-    hint.hidden = libraryViewMode === 'latest';
+    hint.hidden = libraryViewMode === 'latest' || libraryViewMode === 'purchase';
     hint.textContent = libraryViewMode === 'themes'
       ? 'Trascina un post-it tematico in una nuova posizione oppure usa le frecce. L’ordine è salvato in questo browser.'
       : 'Trascina i libri per riordinarli oppure usa le frecce sulla scheda. L’ordine è salvato in questo browser.';
@@ -487,7 +497,7 @@
     showScreen({ email: 'Demo locale' });
     renderStats();
     renderBooks();
-    statusMessage.textContent = '6 libri di esempio · prova ricerca, filtri e dettagli.';
+    statusMessage.textContent = '7 libri di esempio · prova ricerca, filtri e dettagli.';
   }
 
   async function loadBooks() {
@@ -520,6 +530,7 @@
   function renderStats() {
     const stats = [
       ['Totale libri', books.length],
+      ['Da acquistare', books.filter((book) => book.status === 'to_buy').length],
       ['Da leggere', books.filter((book) => book.status === 'to_read').length],
       ['In lettura', books.filter((book) => book.status === 'reading').length],
       ['Letti', books.filter((book) => book.status === 'read').length],
@@ -531,7 +542,9 @@
 
   function renderBooks() {
     const query = document.querySelector('#search').value.trim().toLocaleLowerCase('it');
-    const status = document.querySelector('#status-filter').value;
+    const status = libraryViewMode === 'purchase'
+      ? 'to_buy'
+      : document.querySelector('#status-filter').value;
     const theme = document.querySelector('#theme-filter').value;
     const visible = books.filter((book) => {
       const matchesText = ['title', 'author', 'theme', 'plot', 'notes', 'isbn']
@@ -541,7 +554,9 @@
         (!theme || String(book.theme || '').trim() === theme);
     });
     if (!visible.length) {
-      grid.innerHTML = '<div class="empty">Nessun libro trovato con questi filtri.</div>';
+      grid.innerHTML = libraryViewMode === 'purchase'
+        ? '<div class="empty">Nessun libro da acquistare. Aggiungine uno con “Aggiungi libro”.</div>'
+        : '<div class="empty">Nessun libro trovato con questi filtri.</div>';
       return;
     }
     if (libraryViewMode === 'themes') {
@@ -657,15 +672,24 @@
   }
 
   function setLibraryViewMode(mode) {
+    const previousMode = libraryViewMode;
     libraryViewMode = mode;
     setOrderHint();
-    if (mode === 'themes' || mode === 'latest') {
+    const statusFilter = document.querySelector('#status-filter');
+    statusFilter.disabled = mode === 'purchase';
+    if (mode === 'purchase') {
+      statusFilter.value = 'to_buy';
+    } else if (previousMode === 'purchase') {
+      statusFilter.value = '';
+    }
+    if (mode === 'themes' || mode === 'latest' || mode === 'purchase') {
       document.querySelector('#theme-filter').value = '';
     }
     for (const [buttonId, buttonMode] of [
       ['view-themes', 'themes'],
       ['view-books', 'books'],
       ['view-latest', 'latest'],
+      ['view-purchase', 'purchase'],
     ]) {
       const selected = mode === buttonMode;
       const button = document.querySelector(`#${buttonId}`);
@@ -961,7 +985,7 @@
         if (!title || !author) {
           throw new Error('Ogni libro deve avere titolo e autore.');
         }
-        const status = ['to_read', 'reading', 'read'].includes(raw.status)
+        const status = ['to_buy', 'to_read', 'reading', 'read'].includes(raw.status)
           ? raw.status
           : 'to_read';
         const year = raw.year === null || raw.year === '' || raw.year === undefined
@@ -1168,7 +1192,10 @@
   document.querySelector('#search').addEventListener('input', renderBooks);
   document.querySelector('#status-filter').addEventListener('change', renderBooks);
   document.querySelector('#theme-filter').addEventListener('change', () => {
-    if (document.querySelector('#theme-filter').value) setLibraryViewMode('books');
+    if (document.querySelector('#theme-filter').value &&
+        libraryViewMode !== 'purchase') {
+      setLibraryViewMode('books');
+    }
     renderBooks();
   });
   document.querySelector('#view-themes').addEventListener('click', () => {
@@ -1183,6 +1210,10 @@
     setLibraryViewMode('latest');
     renderBooks();
   });
+  document.querySelector('#view-purchase').addEventListener('click', () => {
+    setLibraryViewMode('purchase');
+    renderBooks();
+  });
   document.querySelector('#settings-toggle').addEventListener('click', () => {
     setLibrarySection(document.querySelector('#library-settings').hidden ? 'settings' : 'books');
   });
@@ -1192,6 +1223,8 @@
       return;
     }
     addBookMessage.textContent = '';
+    document.querySelector('#book-status').value =
+      libraryViewMode === 'purchase' ? 'to_buy' : 'to_read';
     addBookDialog.showModal();
     document.querySelector('#book-title').focus();
   });

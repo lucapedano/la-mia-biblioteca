@@ -11,7 +11,16 @@ import 'book_detail_screen.dart';
 /// "Tutti i libri": search, sort, reading-status filter chips and a
 /// grid / compact-list toggle (same as the Expo app).
 class AllBooksScreen extends StatefulWidget {
-  const AllBooksScreen({super.key});
+  final String initialStatus;
+  final String title;
+  final bool showStatusChips;
+
+  const AllBooksScreen({
+    super.key,
+    this.initialStatus = '',
+    this.title = 'Tutti i libri',
+    this.showStatusChips = true,
+  });
 
   @override
   State<AllBooksScreen> createState() => _AllBooksScreenState();
@@ -20,6 +29,7 @@ class AllBooksScreen extends StatefulWidget {
 class _AllBooksScreenState extends State<AllBooksScreen> {
   static const _statusChips = [
     ('', 'Tutti'),
+    ('to_buy', 'Da acquistare'),
     ('to_read', 'Da leggere'),
     ('reading', 'In corso'),
     ('read', 'Letto'),
@@ -35,6 +45,7 @@ class _AllBooksScreenState extends State<AllBooksScreen> {
   @override
   void initState() {
     super.initState();
+    _status = widget.initialStatus;
     _future = _load();
   }
 
@@ -70,16 +81,16 @@ class _AllBooksScreenState extends State<AllBooksScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Tutti i libri',
-                      style:
-                          TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                    Text(
+                      widget.title,
+                      style: const TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.w800),
                     ),
                     FutureBuilder<List<Book>>(
                       future: _future,
                       builder: (context, snapshot) => snapshot.hasData
                           ? Text(
-                              '${snapshot.data!.length} libri',
+                              '${snapshot.data!.length} ${snapshot.data!.length == 1 ? 'libro' : 'libri'}',
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: AppColors.muted,
@@ -129,28 +140,29 @@ class _AllBooksScreenState extends State<AllBooksScreen> {
             ),
           ),
         ),
-        SizedBox(
-          height: 56,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-            children: [
-              for (final c in _statusChips)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(c.$2),
-                    selected: _status == c.$1,
-                    showCheckmark: false,
-                    onSelected: (_) {
-                      _status = c.$1;
-                      _reload();
-                    },
+        if (widget.showStatusChips)
+          SizedBox(
+            height: 56,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+              children: [
+                for (final c in _statusChips)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(c.$2),
+                      selected: _status == c.$1,
+                      showCheckmark: false,
+                      onSelected: (_) {
+                        _status = c.$1;
+                        _reload();
+                      },
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
         const Divider(height: 1),
         Expanded(
           child: FutureBuilder<List<Book>>(

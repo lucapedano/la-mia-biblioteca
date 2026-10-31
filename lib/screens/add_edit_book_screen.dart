@@ -14,7 +14,13 @@ import 'scan_screen.dart';
 /// Add or edit a book, including an ISBN and a locally stored cover photo.
 class AddEditBookScreen extends StatefulWidget {
   final Book? existing;
-  const AddEditBookScreen({super.key, this.existing});
+  final String initialStatus;
+
+  const AddEditBookScreen({
+    super.key,
+    this.existing,
+    this.initialStatus = 'to_read',
+  });
 
   @override
   State<AddEditBookScreen> createState() => _AddEditBookScreenState();
@@ -61,6 +67,7 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
   @override
   void initState() {
     super.initState();
+    _status = widget.initialStatus;
     final b = widget.existing;
     if (b != null) {
       _title.text = b.title;
@@ -390,17 +397,20 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
             const SizedBox(height: 12),
             _opt(_location, 'Posizione scaffale'),
             const SizedBox(height: 16),
-            const Text('Stato di lettura',
+            const Text('Stato del libro',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'to_read', label: Text('Da leggere')),
-                ButtonSegment(value: 'reading', label: Text('In corso')),
-                ButtonSegment(value: 'read', label: Text('Letto')),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final entry in kStatusLabels.entries)
+                  ChoiceChip(
+                    label: Text(entry.value),
+                    selected: _status == entry.key,
+                    onSelected: (_) => setState(() => _status = entry.key),
+                  ),
               ],
-              selected: {_status},
-              onSelectionChanged: (s) => setState(() => _status = s.first),
             ),
             const SizedBox(height: 16),
             const Text('Colore', style: TextStyle(fontWeight: FontWeight.w600)),

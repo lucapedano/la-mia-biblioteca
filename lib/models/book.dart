@@ -6,7 +6,7 @@ class Book {
   final int? year;
   final String color;
   final int? pages;
-  final String status; // to_read | reading | read
+  final String status; // to_buy | to_read | reading | read
   final String? plot;
   final String? notes;
   final String? location;
@@ -86,6 +86,7 @@ class Book {
 }
 
 const Map<String, String> kStatusLabels = {
+  'to_buy': 'Da acquistare',
   'to_read': 'Da leggere',
   'reading': 'In corso',
   'read': 'Letto',
