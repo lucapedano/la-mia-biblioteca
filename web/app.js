@@ -595,11 +595,14 @@
           open(event);
         }
       });
+      const cardIndex = displayedBooks.findIndex((book) => book.id === card.dataset.id);
       card.querySelectorAll('.move-book-button').forEach((button) => {
-        button.disabled = libraryViewMode !== 'books';
+        const offset = Number(button.dataset.move);
+        button.disabled = libraryViewMode !== 'books' ||
+          cardIndex < 0 || !displayedBooks[cardIndex + offset];
         button.addEventListener('click', (event) => {
           event.stopPropagation();
-          moveBookBy(card.dataset.id, Number(button.dataset.move));
+          moveBookBy(card.dataset.id, offset);
         });
       });
       const book = books.find((item) => item.id === card.dataset.id);
