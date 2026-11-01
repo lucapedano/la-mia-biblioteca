@@ -515,16 +515,13 @@
       .trim()
       .replace(/\s+/g, ' ')
       .toLocaleLowerCase('it');
-    if (normalizeText(existing.title) !== normalizeText(incoming.title) ||
-        normalizeText(existing.author) !== normalizeText(incoming.author)) return false;
-    if (existingIsbn && incomingIsbn && existingIsbn !== incomingIsbn) return false;
-    if (existing.year && incoming.year && Number(existing.year) !== Number(incoming.year)) {
-      return false;
-    }
-    if (existing.pages && incoming.pages && Number(existing.pages) !== Number(incoming.pages)) {
-      return false;
-    }
-    return true;
+    const existingTitle = normalizeText(existing.title);
+    const incomingTitle = normalizeText(incoming.title);
+    const existingAuthor = normalizeText(existing.author);
+    const incomingAuthor = normalizeText(incoming.author);
+    return Boolean(existingTitle && existingAuthor) &&
+      existingTitle === incomingTitle &&
+      existingAuthor === incomingAuthor;
   }
 
   async function addBook(event) {
@@ -1324,16 +1321,7 @@
   }
 
   function sameBookForImport(existing, incoming) {
-    if (String(existing.title || '').trim().toLocaleLowerCase('it') !==
-        incoming.title.toLocaleLowerCase('it') ||
-        String(existing.author || '').trim().toLocaleLowerCase('it') !==
-        incoming.author.toLocaleLowerCase('it')) return false;
-    const oldIsbn = String(existing.isbn || '').replace(/[^0-9x]/gi, '').toLowerCase();
-    const newIsbn = String(incoming.isbn || '').replace(/[^0-9x]/gi, '').toLowerCase();
-    if (oldIsbn && newIsbn && oldIsbn !== newIsbn) return false;
-    if (existing.year && incoming.year && Number(existing.year) !== incoming.year) return false;
-    if (existing.pages && incoming.pages && Number(existing.pages) !== incoming.pages) return false;
-    return true;
+    return sameBookForEntry(existing, incoming);
   }
 
   async function uploadBackupCover(cover, userId) {

@@ -8,8 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('reimport restores same-title editions without duplicating records',
-      () async {
+  test('reimport does not create duplicates for same-title editions', () async {
     SharedPreferences.setMockInitialValues({});
     final temporaryDirectory = await Directory.systemTemp.createTemp();
     final appDirectory = Directory(
@@ -51,6 +50,7 @@ void main() {
           'title': '4 Racconti',
           'author': 'Narrativa Mondiale',
           'theme': 'Narrativa',
+          'isbn': '9780140328721',
           'year': 1977,
           'pages': 502,
           'cover_data': base64Encode(existingCoverBytes),
@@ -59,8 +59,9 @@ void main() {
           'title': '4 racconti',
           'author': 'Narrativa Mondiale',
           'theme': 'Narrativa',
-          'year': 1977,
-          'pages': 502,
+          'isbn': '9788806226961',
+          'year': 2020,
+          'pages': 300,
           'cover_data': base64Encode(otherEditionCoverBytes),
         },
         {
@@ -79,15 +80,15 @@ void main() {
     );
     try {
       final firstImport = await library.importLibraryFile(backup);
-      expect(firstImport.imported, 1);
-      expect(firstImport.total, 2);
+      expect(firstImport.imported, 0);
+      expect(firstImport.total, 1);
 
       final repeatedImport = await library.importLibraryFile(backup);
       expect(repeatedImport.imported, 0);
-      expect(repeatedImport.total, 2);
+      expect(repeatedImport.total, 1);
 
       final books = await library.list();
-      expect(books, hasLength(2));
+      expect(books, hasLength(1));
       expect(await library.removeDuplicates(), 0);
     } finally {
       library.close();
@@ -149,11 +150,13 @@ void main() {
       expect(await library.list(), hasLength(1));
     });
 
-    test('blocks matching title and author when edition details match',
+    test(
+        'blocks matching title and author despite different editions and ISBNs',
         () async {
       await library.create(book(
         title: 'Il libro',
         author: 'Autore',
+        isbn: '9780140328721',
         year: 2020,
         pages: 180,
       ));
@@ -162,28 +165,31 @@ void main() {
         library.create(book(
           title: '  IL   LIBRO ',
           author: 'autore',
-          year: 2020,
-          pages: 180,
+          isbn: '9788806226961',
+          year: 2021,
+          pages: 200,
         )),
         throwsA(isA<DuplicateBookException>()),
       );
       expect(await library.list(), hasLength(1));
     });
 
-    test('allows a separate edition with a different ISBN', () async {
+    test('blocks the same ISBN even when the title differs', () async {
       await library.create(book(
-        title: 'Il libro',
+        title: 'Primo titolo',
         author: 'Autore',
         isbn: '9780140328721',
       ));
 
-      await library.create(book(
-        title: 'Il libro',
-        author: 'Autore',
-        isbn: '9788806226961',
-      ));
-
-      expect(await library.list(), hasLength(2));
+      await expectLater(
+        library.create(book(
+          title: 'Titolo diverso',
+          author: 'Altro autore',
+          isbn: '9780140328721',
+        )),
+        throwsA(isA<DuplicateBookException>()),
+      );
+      expect(await library.list(), hasLength(1));
     });
   });
 }

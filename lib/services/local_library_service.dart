@@ -482,28 +482,14 @@ class LocalLibraryService {
       return true;
     }
 
-    String normalizeLabel(String value) =>
-        value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
-    if (normalizeLabel(existing.title) != normalizeLabel(candidate.title) ||
-        normalizeLabel(existing.author) != normalizeLabel(candidate.author)) {
-      return false;
-    }
-    if (existingIsbn != null &&
-        candidateIsbn != null &&
-        existingIsbn != candidateIsbn) {
-      return false;
-    }
-    if (existing.year != null &&
-        candidate.year != null &&
-        existing.year != candidate.year) {
-      return false;
-    }
-    if (existing.pages != null &&
-        candidate.pages != null &&
-        existing.pages != candidate.pages) {
-      return false;
-    }
-    return true;
+    final existingTitle = _normalizeBookLabel(existing.title);
+    final candidateTitle = _normalizeBookLabel(candidate.title);
+    final existingAuthor = _normalizeBookLabel(existing.author);
+    final candidateAuthor = _normalizeBookLabel(candidate.author);
+    return existingTitle.isNotEmpty &&
+        existingAuthor.isNotEmpty &&
+        existingTitle == candidateTitle &&
+        existingAuthor == candidateAuthor;
   }
 
   Future<Book> update(String id, Map<String, dynamic> payload) async {
@@ -614,20 +600,29 @@ class LocalLibraryService {
     final unique = <Book>[];
     final indicesByKey = <String, List<int>>{};
     for (final book in _books) {
-      final key = _bookKey(book);
-      final candidates = indicesByKey[key] ?? const <int>[];
+      final candidates = _bookKeys(book)
+          .expand((key) => indicesByKey[key] ?? const <int>[])
+          .toSet();
       int? matchIndex;
       for (final index in candidates) {
-        if (await _areSameBook(unique[index], book)) {
+        if (_isSameBookForCreation(unique[index], book)) {
           matchIndex = index;
           break;
         }
       }
       if (matchIndex == null) {
-        indicesByKey.putIfAbsent(key, () => []).add(unique.length);
+        final index = unique.length;
         unique.add(book);
+        for (final key in _bookKeys(book)) {
+          indicesByKey.putIfAbsent(key, () => []).add(index);
+        }
       } else {
-        unique[matchIndex] = _mergeDuplicate(unique[matchIndex], book);
+        final merged = _mergeDuplicate(unique[matchIndex], book);
+        unique[matchIndex] = merged;
+        for (final key in _bookKeys(merged)) {
+          final indexes = indicesByKey.putIfAbsent(key, () => []);
+          if (!indexes.contains(matchIndex)) indexes.add(matchIndex);
+        }
       }
     }
     final removed = _books.length - unique.length;
@@ -825,24 +820,30 @@ class LocalLibraryService {
 
     final indicesByKey = <String, List<int>>{};
     for (var index = 0; index < _books.length; index++) {
-      indicesByKey.putIfAbsent(_bookKey(_books[index]), () => []).add(index);
+      for (final key in _bookKeys(_books[index])) {
+        indicesByKey.putIfAbsent(key, () => []).add(index);
+      }
     }
     var addedCount = 0;
     var updatedCount = 0;
     var coverCount = 0;
     for (final incoming in imported) {
-      final key = _bookKey(incoming);
-      final candidates = indicesByKey[key] ?? const <int>[];
+      final candidates = _bookKeys(incoming)
+          .expand((key) => indicesByKey[key] ?? const <int>[])
+          .toSet();
       int? existingIndex;
       for (final index in candidates) {
-        if (await _areSameBook(_books[index], incoming)) {
+        if (_isSameBookForCreation(_books[index], incoming)) {
           existingIndex = index;
           break;
         }
       }
       if (existingIndex == null) {
-        indicesByKey.putIfAbsent(key, () => []).add(_books.length);
+        final index = _books.length;
         _books.add(incoming);
+        for (final key in _bookKeys(incoming)) {
+          indicesByKey.putIfAbsent(key, () => []).add(index);
+        }
         addedCount++;
         if (await _hasLocalCover(incoming.coverUrl)) coverCount++;
         continue;
@@ -879,49 +880,19 @@ class LocalLibraryService {
     );
   }
 
-  String _bookKey(Book book) =>
-      '${book.title.trim().toLowerCase()}|${book.author.trim().toLowerCase()}';
+  String _normalizeBookLabel(String value) =>
+      value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
-  Future<bool> _areSameBook(Book first, Book second) async {
-    final firstIsbn = normalizeIsbn(first.isbn ?? '');
-    final secondIsbn = normalizeIsbn(second.isbn ?? '');
-    if (firstIsbn != null && secondIsbn != null && firstIsbn != secondIsbn) {
-      return false;
+  Set<String> _bookKeys(Book book) {
+    final keys = <String>{};
+    final isbn = normalizeIsbn(book.isbn ?? '');
+    if (isbn != null) keys.add('isbn:$isbn');
+    final title = _normalizeBookLabel(book.title);
+    final author = _normalizeBookLabel(book.author);
+    if (title.isNotEmpty && author.isNotEmpty) {
+      keys.add('title:$title|author:$author');
     }
-    if (first.year != null &&
-        second.year != null &&
-        first.year != second.year) {
-      return false;
-    }
-    if (first.pages != null &&
-        second.pages != null &&
-        first.pages != second.pages) {
-      return false;
-    }
-
-    final firstCover = first.coverUrl;
-    final secondCover = second.coverUrl;
-    if (firstCover == null ||
-        firstCover.isEmpty ||
-        secondCover == null ||
-        secondCover.isEmpty) {
-      return true;
-    }
-    if (firstCover.startsWith('http') && secondCover.startsWith('http')) {
-      return firstCover == secondCover;
-    }
-
-    final firstFile = _coverFile(firstCover);
-    final secondFile = _coverFile(secondCover);
-    if (!await firstFile.exists() || !await secondFile.exists()) return true;
-    final firstLength = await firstFile.length();
-    if (firstLength != await secondFile.length()) return false;
-    final firstBytes = await firstFile.readAsBytes();
-    final secondBytes = await secondFile.readAsBytes();
-    for (var index = 0; index < firstBytes.length; index++) {
-      if (firstBytes[index] != secondBytes[index]) return false;
-    }
-    return true;
+    return keys;
   }
 
   File _coverFile(String path) =>

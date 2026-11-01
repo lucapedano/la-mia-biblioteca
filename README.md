@@ -21,9 +21,9 @@ progetto proprio e aver effettuato l'accesso.
   importare backup JSON o ZIP, anche archivi contenenti un file JSON dei libri
   e le relative immagini. Dopo l'importazione l'app mostra i libri aggiunti,
   i libri esistenti aggiornati con le copertine trovate e il totale aggiornato.
-  I libri con lo stesso titolo e autore ma edizione o copertina diversa sono
-  conservati separatamente; importare nuovamente lo stesso backup non crea
-  copie identiche.
+  Libri con lo stesso ISBN oppure lo stesso titolo e autore sono considerati
+  duplicati anche se cambiano edizione o copertina; importare nuovamente lo
+  stesso backup non crea copie.
 - Senza configurare Supabase ogni telefono mantiene la propria libreria e non
   c'è sincronizzazione tra dispositivi. Conserva una copia del backup; la
   disinstallazione dell'app può cancellare i dati locali.
@@ -79,9 +79,10 @@ flutter build appbundle --flavor standard --release
    Se il progetto Supabase esiste già, esegui anche
    [la migrazione per i libri da acquistare](./supabase/migrations/20261031000000_add_to_buy_status.sql)
    dal SQL Editor: aggiunge il nuovo stato senza modificare i libri esistenti.
-   Esegui anche
+   Esegui inoltre, nell'ordine,
    [la migrazione anti-doppioni](./supabase/migrations/20261101131500_prevent_duplicate_books.sql)
-   dal SQL Editor: blocca i duplicati a livello database per app, sito e importazioni.
+   e [la regola aggiornata per i doppioni](./supabase/migrations/20261101140000_block_same_title_author.sql):
+   bloccano i doppioni a livello database per app, sito e importazioni.
 3. Copia il Project URL e la chiave pubblica `anon`/publishable del progetto.
    Non usare mai la chiave `service_role`.
 4. Nel progetto locale crea `supabase.local.json` (è escluso da Git) con
@@ -126,8 +127,8 @@ flutter build appbundle --flavor standard --release
    `supabase functions deploy nicebooks-search --project-ref hodevrrcdgkbmlhfsgze`.
    Puoi inoltre aprire le ricerche su Anobii o BookFinder; verifica i dati prima
    di salvare. L'inserimento viene bloccato se l'ISBN è già presente o se
-   coincidono titolo e autore senza differenze di edizione; ISBN diversi
-   possono identificare edizioni separate. Il controllo viene applicato anche
+   coincidono titolo e autore, anche quando ISBN, anno o pagine indicano
+   edizioni diverse. Il controllo viene applicato anche
    dal database, quindi vale per app, sito e importazioni; eventuali doppioni
    già presenti non vengono cancellati automaticamente.
    Puoi cambiare lo stato dalla scheda del libro per spostarlo nella libreria.
