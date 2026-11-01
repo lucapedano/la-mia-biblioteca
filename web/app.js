@@ -1170,6 +1170,25 @@
     };
     if (coverUrlValue !== (book.cover_url || null)) update.cover_path = null;
 
+    const normalizeText = (value) => String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('it');
+    const identityChanged =
+      normalizeText(book.title) !== normalizeText(update.title) ||
+      normalizeText(book.author) !== normalizeText(update.author) ||
+      bookIsbnKey(book.isbn) !== bookIsbnKey(update.isbn);
+    if (identityChanged) {
+      const duplicate = books.find((item) =>
+        item.id !== book.id && sameBookForEntry(item, update),
+      );
+      if (duplicate) {
+        editBookMessage.textContent =
+          `Doppione: "${duplicate.title}" di ${duplicate.author} è già presente. Le modifiche non sono state salvate.`;
+        return;
+      }
+    }
+
     try {
       const { data, error } = await client.from('books')
         .update(update)

@@ -466,8 +466,9 @@ class LocalLibraryService {
     return book;
   }
 
-  Book? _findCreationDuplicate(Book candidate) {
+  Book? _findCreationDuplicate(Book candidate, {String? excludingId}) {
     for (final existing in _books) {
+      if (existing.id == excludingId) continue;
       if (_isSameBookForCreation(existing, candidate)) return existing;
     }
     return null;
@@ -507,9 +508,38 @@ class LocalLibraryService {
         payload['cover_url'] != current.coverUrl) {
       update['cloud_cover_path'] = null;
     }
-    _books[index] = Book.fromJson(update);
+    final updatedBook = Book.fromJson(update);
+    final identityChanged = _normalizeBookLabel(current.title) !=
+            _normalizeBookLabel(updatedBook.title) ||
+        _normalizeBookLabel(current.author) !=
+            _normalizeBookLabel(updatedBook.author) ||
+        normalizeIsbn(current.isbn ?? '') !=
+            normalizeIsbn(updatedBook.isbn ?? '');
+    if (identityChanged) {
+      final duplicate =
+          _findCreationDuplicate(updatedBook, excludingId: current.id);
+      if (duplicate != null) {
+        throw DuplicateBookException(
+          'Il libro "${duplicate.title}" di ${duplicate.author} è già presente nella libreria.',
+        );
+      }
+    }
+
+    _books[index] = updatedBook;
     await _persist();
-    await _uploadAfterLocalSave([_books[index]]);
+    try {
+      await _uploadAfterLocalSave([_books[index]]);
+    } on DuplicateBookException {
+      _books[index] = current;
+      try {
+        await _persist();
+      } catch (rollbackError) {
+        throw StateError(
+          'Il duplicato è stato rifiutato dal cloud, ma non è stato possibile ripristinare il libro sul dispositivo: $rollbackError',
+        );
+      }
+      rethrow;
+    }
     return _books[index];
   }
 

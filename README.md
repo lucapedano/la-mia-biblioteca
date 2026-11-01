@@ -81,8 +81,9 @@ flutter build appbundle --flavor standard --release
    dal SQL Editor: aggiunge il nuovo stato senza modificare i libri esistenti.
    Esegui inoltre, nell'ordine,
    [la migrazione anti-doppioni](./supabase/migrations/20261101131500_prevent_duplicate_books.sql)
-   e [la regola aggiornata per i doppioni](./supabase/migrations/20261101140000_block_same_title_author.sql):
-   bloccano i doppioni a livello database per app, sito e importazioni.
+   e [la regola aggiornata per i doppioni](./supabase/migrations/20261101140000_block_same_title_author.sql),
+   seguite da [il controllo anche sulle modifiche](./supabase/migrations/20261101150000_prevent_duplicate_book_updates.sql):
+   bloccano i doppioni a livello database per app, sito, modifiche e importazioni.
 3. Copia il Project URL e la chiave pubblica `anon`/publishable del progetto.
    Non usare mai la chiave `service_role`.
 4. Nel progetto locale crea `supabase.local.json` (è escluso da Git) con
@@ -129,8 +130,9 @@ flutter build appbundle --flavor standard --release
    di salvare. L'inserimento viene bloccato se l'ISBN è già presente o se
    coincidono titolo e autore, anche quando ISBN, anno o pagine indicano
    edizioni diverse. Il controllo viene applicato anche
-   dal database, quindi vale per app, sito e importazioni; eventuali doppioni
-   già presenti non vengono cancellati automaticamente.
+   dal database, quindi vale per app, sito, modifiche e importazioni; eventuali
+   doppioni già presenti non vengono cancellati automaticamente. Nell'app Cloud
+   puoi rimuoverli da **Impostazioni → Rimuovi doppioni**.
    Puoi cambiare lo stato dalla scheda del libro per spostarlo nella libreria.
    Il sito permette anche di cambiare il colore del post-it ed eliminare libri
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**

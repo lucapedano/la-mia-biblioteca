@@ -191,5 +191,28 @@ void main() {
       );
       expect(await library.list(), hasLength(1));
     });
+
+    test('rejects an edit that would duplicate another book', () async {
+      await library.create(book(
+        title: 'Libro già presente',
+        author: 'Autore',
+        isbn: '9780140328721',
+      ));
+      final edited = await library.create(book(
+        title: 'Altro libro',
+        author: 'Altra autrice',
+        isbn: '9788806226961',
+      ));
+
+      await expectLater(
+        library.update(edited.id, {
+          'title': ' LIBRO GIÀ PRESENTE ',
+          'author': 'autore',
+          'isbn': '9788806226961',
+        }),
+        throwsA(isA<DuplicateBookException>()),
+      );
+      expect((await library.get(edited.id)).title, 'Altro libro');
+    });
   });
 }
