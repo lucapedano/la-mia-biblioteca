@@ -499,6 +499,31 @@
     if (user) document.querySelector('#account-email').textContent = user.email || '';
   }
 
+  function bookIsbnKey(value) {
+    return String(value || '').replace(/[^\dX]/gi, '').toUpperCase();
+  }
+
+  function sameBookForEntry(existing, incoming) {
+    const existingIsbn = bookIsbnKey(existing.isbn);
+    const incomingIsbn = bookIsbnKey(incoming.isbn);
+    if (existingIsbn && incomingIsbn && existingIsbn === incomingIsbn) return true;
+
+    const normalizeText = (value) => String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('it');
+    if (normalizeText(existing.title) !== normalizeText(incoming.title) ||
+        normalizeText(existing.author) !== normalizeText(incoming.author)) return false;
+    if (existingIsbn && incomingIsbn && existingIsbn !== incomingIsbn) return false;
+    if (existing.year && incoming.year && Number(existing.year) !== Number(incoming.year)) {
+      return false;
+    }
+    if (existing.pages && incoming.pages && Number(existing.pages) !== Number(incoming.pages)) {
+      return false;
+    }
+    return true;
+  }
+
   async function addBook(event) {
     event.preventDefault();
     if (demoMode || !currentUser) {
@@ -515,6 +540,20 @@
       return;
     }
 
+    const draft = {
+      title,
+      author,
+      year: formData.get('year') ? Number(formData.get('year')) : null,
+      pages: formData.get('pages') ? Number(formData.get('pages')) : null,
+      isbn: String(formData.get('isbn') || '').trim() || null,
+    };
+    const duplicate = books.find((book) => sameBookForEntry(book, draft));
+    if (duplicate) {
+      addBookMessage.textContent =
+        `Doppione: "${duplicate.title}" di ${duplicate.author} è già presente. Il libro non è stato aggiunto.`;
+      return;
+    }
+
     const saveButton = document.querySelector('#save-book');
     saveButton.disabled = true;
     addBookMessage.textContent = '';
@@ -525,12 +564,12 @@
       title,
       author,
       theme,
-      year: formData.get('year') ? Number(formData.get('year')) : null,
-      pages: formData.get('pages') ? Number(formData.get('pages')) : null,
+      year: draft.year,
+      pages: draft.pages,
       status: String(formData.get('status') || 'to_read'),
       color: bookColor(formData.get('color')),
       location: String(formData.get('location') || '').trim() || null,
-      isbn: String(formData.get('isbn') || '').trim() || null,
+      isbn: draft.isbn,
       cover_url: String(formData.get('cover_url') || '').trim() || null,
       plot: String(formData.get('plot') || '').trim() || null,
       notes: String(formData.get('notes') || '').trim() || null,
@@ -566,6 +605,9 @@
     if (site === 'anobii') {
       return `https://www.anobii.com/it/search?query=${encodeURIComponent(searchTerm)}`;
     }
+    if (site === 'nicebooks') {
+      return `https://nicebooks.com/it/search/isbn?isbn=${encodeURIComponent(isbn)}`;
+    }
     const params = new URLSearchParams({
       currency: 'EUR',
       destination: 'it',
@@ -579,9 +621,14 @@
       catalogSourceLinks.innerHTML = '';
       return;
     }
-    catalogSourceLinks.innerHTML = ['Anobii', 'BookFinder'].map((site) => `
-      <a class="button button-quiet" href="${escapeHtml(catalogSearchUrl(site === 'Anobii' ? 'anobii' : 'bookfinder', query))}"
-        target="_blank" rel="noopener noreferrer">Cerca su ${site}</a>
+    const sources = [
+      { key: 'anobii', label: 'Anobii' },
+      { key: 'bookfinder', label: 'BookFinder' },
+      ...(catalogIsbn(query) ? [{ key: 'nicebooks', label: 'NiceBooks' }] : []),
+    ];
+    catalogSourceLinks.innerHTML = sources.map((site) => `
+      <a class="button button-quiet" href="${escapeHtml(catalogSearchUrl(site.key, query))}"
+        target="_blank" rel="noopener noreferrer">Cerca su ${site.label}</a>
     `).join('');
   }
 
@@ -624,6 +671,7 @@
         theme: Array.isArray(info.categories) ? String(info.categories[0] || '') : '',
         isbn: catalogBookIsbn(identifiers),
         coverUrl: catalogCoverUrl(imageLinks.thumbnail || imageLinks.smallThumbnail),
+        source: 'Google Books',
       };
     }).filter((book) => book.title);
   }
@@ -652,8 +700,32 @@
         coverUrl: Number.isInteger(coverId) && coverId > 0
           ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`
           : '',
+        source: 'Open Library',
       };
     }).filter((book) => book.title);
+  }
+
+  async function searchNiceBooks(isbn) {
+    const { data, error } = await client.functions.invoke('nicebooks-search', {
+      body: { isbn },
+    });
+    if (error) throw new Error(`NiceBooks: ${error.message || String(error)}`);
+    if (!data || !Array.isArray(data.books)) {
+      throw new Error('NiceBooks ha restituito una risposta non valida.');
+    }
+    if (!data.books.length && data.warnings?.length) {
+      throw new Error(data.warnings.join(' '));
+    }
+    return data.books.map((book) => ({
+      title: String(book.title || '').trim(),
+      author: String(book.author || '').trim(),
+      year: Number.isInteger(book.year) ? book.year : null,
+      pages: Number.isInteger(book.pages) ? book.pages : null,
+      theme: String(book.theme || ''),
+      isbn: catalogIsbn(book.isbn) || isbn,
+      coverUrl: catalogCoverUrl(book.coverUrl),
+      source: 'NiceBooks',
+    })).filter((book) => book.title);
   }
 
   function mergeCatalogBooks(books) {
@@ -722,6 +794,7 @@
       const responses = await Promise.allSettled([
         searchGoogleBooks(query, isbn),
         searchOpenLibrary(query, isbn),
+        ...(isbn ? [searchNiceBooks(isbn)] : []),
       ]);
       if (requestId !== catalogSearchRequestId) return;
       const books = mergeCatalogBooks(
@@ -733,7 +806,7 @@
         .filter((response) => response.status === 'rejected')
         .map((response) => response.reason.message || String(response.reason));
       catalogSearchResults.innerHTML = books.map((book, index) => {
-        const subtitle = [book.author, book.year, book.isbn]
+        const subtitle = [book.source, book.author, book.year, book.isbn]
           .filter(Boolean)
           .map(escapeHtml)
           .join(' · ');
@@ -760,7 +833,7 @@
       } else {
         catalogSearchMessage.textContent = warnings.length
           ? `Ricerca non disponibile: ${warnings.join(' ')}`
-          : 'Nessun libro trovato nei cataloghi. Puoi provare su Anobii o BookFinder.';
+          : 'Nessun libro trovato nei cataloghi. Puoi provare su Anobii, BookFinder o NiceBooks.';
       }
     } catch (error) {
       if (requestId === catalogSearchRequestId) {

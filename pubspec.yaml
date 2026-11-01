@@ -1,7 +1,7 @@
 name: la_mia_libreria
 description: "La mia libreria — app Flutter offline con dati locali sul dispositivo."
 publish_to: "none"
-version: 1.1.2+13
+version: 1.2.0+18
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -20,6 +20,7 @@ dependencies:
   http: ^1.6.0
   google_mlkit_text_recognition: ^0.16.0
   supabase_flutter: ^2.18.3
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

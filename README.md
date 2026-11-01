@@ -116,6 +116,15 @@ flutter build appbundle --flavor standard --release
    ultimi dieci inserimenti e usare la vista dedicata **Da acquistare**.
    Nell'app la voce **Acquisti** apre la stessa lista; aggiungendo un libro da
    quella scheda lo stato viene impostato automaticamente su **Da acquistare**.
+   Nel modulo di aggiunta, dall'app e dal sito, puoi cercare per titolo o ISBN
+   su Google Books e Open Library e importare i dati disponibili. Con un ISBN
+   puoi consultare anche NiceBooks. Il sito usa la Edge Function
+   `nicebooks-search` per superare il limite CORS del browser; distribuiscila con
+   `supabase functions deploy nicebooks-search --project-ref hodevrrcdgkbmlhfsgze`.
+   Puoi inoltre aprire le ricerche su Anobii o BookFinder; verifica i dati prima
+   di salvare. L'inserimento viene bloccato se l'ISBN è già presente o se
+   coincidono titolo e autore senza differenze di edizione; ISBN diversi
+   possono identificare edizioni separate.
    Puoi cambiare lo stato dalla scheda del libro per spostarlo nella libreria.
    Il sito permette anche di cambiare il colore del post-it ed eliminare libri
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**
@@ -123,7 +132,10 @@ flutter build appbundle --flavor standard --release
    per il sito. Nella pagina principale **Tematiche** puoi riordinare anche i
    post-it delle tematiche trascinandoli oppure usando le frecce. L’ordine è
    memorizzato nel browser usato per il sito; nell'app puoi riordinarle da
-   **Esplora → Riordina**, con l'ordine conservato sul dispositivo. Queste
+   **Esplora → Riordina**, trascinando la maniglia o usando le frecce; l'ordine
+   è conservato sul dispositivo. Puoi cambiare il colore delle tematiche con
+   il pulsante palette: si applica ai post-it dei libri e resta una preferenza
+   locale, separata per app e browser. Queste
    preferenze di ordinamento non vengono sincronizzate tra app e sito. Il pulsante
    **Impostazioni**, in alto a destra, permette di
    importare un backup JSON o ZIP: l'importazione aggiunge i libri mancanti e
@@ -186,6 +198,8 @@ può installarsi o aggiornarsi da sola senza l'autorizzazione dell'utente.
 ## Funzioni
 
 - Creazione, modifica, ricerca, ordinamento e raggruppamento dei libri
+- Colore delle tematiche personalizzabile nell'app e nel sito, applicato ai
+  post-it di tutti i libri della tematica e salvato localmente
 - Fotocamera/galleria per salvare le copertine e riconoscere il testo delle foto
 - Scansione, ricerca online ISBN e salvataggio manuale dell'ISBN
 - Preferiti autore e impostazioni di aspetto locali

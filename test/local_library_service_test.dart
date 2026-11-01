@@ -94,4 +94,96 @@ void main() {
       await temporaryDirectory.delete(recursive: true);
     }
   });
+
+  group('book creation duplicate checks', () {
+    late Directory temporaryDirectory;
+    late LocalLibraryService library;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      temporaryDirectory =
+          await Directory.systemTemp.createTemp('biblio-duplicate-test-');
+      library = await LocalLibraryService.open(
+        supportDirectory: Directory(
+          '${temporaryDirectory.path}${Platform.pathSeparator}app',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      library.close();
+      await temporaryDirectory.delete(recursive: true);
+    });
+
+    Map<String, dynamic> book({
+      required String title,
+      required String author,
+      String? isbn,
+      int? year,
+      int? pages,
+    }) =>
+        {
+          'title': title,
+          'author': author,
+          'theme': 'Narrativa',
+          'isbn': isbn,
+          'year': year,
+          'pages': pages,
+        };
+
+    test('blocks an existing ISBN even when the title differs', () async {
+      await library.create(book(
+        title: 'Fantastic Mr. Fox',
+        author: 'Roald Dahl',
+        isbn: '978-0-14-032872-1',
+      ));
+
+      await expectLater(
+        library.create(book(
+          title: 'Un titolo diverso',
+          author: 'Altro autore',
+          isbn: '9780140328721',
+        )),
+        throwsA(isA<DuplicateBookException>()),
+      );
+      expect(await library.list(), hasLength(1));
+    });
+
+    test('blocks matching title and author when edition details match',
+        () async {
+      await library.create(book(
+        title: 'Il libro',
+        author: 'Autore',
+        year: 2020,
+        pages: 180,
+      ));
+
+      await expectLater(
+        library.create(book(
+          title: '  IL   LIBRO ',
+          author: 'autore',
+          year: 2020,
+          pages: 180,
+        )),
+        throwsA(isA<DuplicateBookException>()),
+      );
+      expect(await library.list(), hasLength(1));
+    });
+
+    test('allows a separate edition with a different ISBN', () async {
+      await library.create(book(
+        title: 'Il libro',
+        author: 'Autore',
+        isbn: '9780140328721',
+      ));
+
+      await library.create(book(
+        title: 'Il libro',
+        author: 'Autore',
+        isbn: '9788806226961',
+      ));
+
+      expect(await library.list(), hasLength(2));
+    });
+  });
 }

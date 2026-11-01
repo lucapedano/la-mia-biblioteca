@@ -25,6 +25,16 @@ class LibraryImportResult {
   });
 }
 
+class DuplicateBookException implements Exception {
+  final Book existing;
+
+  const DuplicateBookException(this.existing);
+
+  @override
+  String toString() =>
+      'Il libro "${existing.title}" di ${existing.author} è già presente nella libreria.';
+}
+
 /// Local-first library storage with optional authenticated cloud sync.
 class LocalLibraryService {
   static const _favoritesKey = 'favorite_authors';
@@ -424,6 +434,10 @@ class LocalLibraryService {
   }
 
   Future<Book> create(Map<String, dynamic> payload) async {
+    final candidate = Book.fromJson(payload);
+    final duplicate = _findCreationDuplicate(candidate);
+    if (duplicate != null) throw DuplicateBookException(duplicate);
+
     final now = DateTime.now().toUtc().toIso8601String();
     final book = Book.fromJson({
       ...payload,
@@ -435,6 +449,46 @@ class LocalLibraryService {
     await _persist();
     await _uploadAfterLocalSave([book]);
     return book;
+  }
+
+  Book? _findCreationDuplicate(Book candidate) {
+    for (final existing in _books) {
+      if (_isSameBookForCreation(existing, candidate)) return existing;
+    }
+    return null;
+  }
+
+  bool _isSameBookForCreation(Book existing, Book candidate) {
+    final existingIsbn = normalizeIsbn(existing.isbn ?? '');
+    final candidateIsbn = normalizeIsbn(candidate.isbn ?? '');
+    if (existingIsbn != null &&
+        candidateIsbn != null &&
+        existingIsbn == candidateIsbn) {
+      return true;
+    }
+
+    String normalizeLabel(String value) =>
+        value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    if (normalizeLabel(existing.title) != normalizeLabel(candidate.title) ||
+        normalizeLabel(existing.author) != normalizeLabel(candidate.author)) {
+      return false;
+    }
+    if (existingIsbn != null &&
+        candidateIsbn != null &&
+        existingIsbn != candidateIsbn) {
+      return false;
+    }
+    if (existing.year != null &&
+        candidate.year != null &&
+        existing.year != candidate.year) {
+      return false;
+    }
+    if (existing.pages != null &&
+        candidate.pages != null &&
+        existing.pages != candidate.pages) {
+      return false;
+    }
+    return true;
   }
 
   Future<Book> update(String id, Map<String, dynamic> payload) async {

@@ -13,6 +13,8 @@ class IsbnBookDetails {
   final int? pages;
   final String? plot;
   final String? theme;
+  final String? isbn;
+  final String? coverUrl;
   final List<int>? coverBytes;
   final String? coverExtension;
 
@@ -23,9 +25,18 @@ class IsbnBookDetails {
     this.pages,
     this.plot,
     this.theme,
+    this.isbn,
+    this.coverUrl,
     this.coverBytes,
     this.coverExtension,
   });
+}
+
+class CatalogSearchResult {
+  final List<IsbnBookDetails> books;
+  final List<String> warnings;
+
+  const CatalogSearchResult({required this.books, this.warnings = const []});
 }
 
 class _NiceBooksLookupResult {
@@ -162,6 +173,225 @@ class IsbnLookupService {
       );
     }
     throw Exception('Nessun libro trovato per questo ISBN.');
+  }
+
+  Future<CatalogSearchResult> search(String input) async {
+    final query = input.trim();
+    if (query.isEmpty) {
+      throw const FormatException('Inserisci un titolo o un ISBN da cercare.');
+    }
+
+    final compact = query.replaceAll(RegExp(r'[^0-9Xx]'), '').toUpperCase();
+    final isbn = normalizeIsbn(query);
+    final looksLikeIsbn = RegExp(r'^(?:\d{9}[\dX]|\d{13})$').hasMatch(compact);
+    if (looksLikeIsbn && isbn == null) {
+      throw const FormatException('Il codice ISBN inserito non è valido.');
+    }
+
+    final books = <IsbnBookDetails>[];
+    final errors = <Object>[];
+    try {
+      books.addAll(await _searchGoogleBooks(query, isbn));
+    } catch (error) {
+      errors.add(error);
+    }
+    try {
+      books.addAll(await _searchOpenLibrary(query, isbn));
+    } catch (error) {
+      errors.add(error);
+    }
+    if (isbn != null) {
+      try {
+        final niceBooks = await _lookupNiceBooks(isbn);
+        final book = niceBooks.book;
+        if (book != null) {
+          books.add(IsbnBookDetails(
+            title: book.title,
+            author: book.author,
+            year: book.year,
+            pages: book.pages,
+            plot: book.plot,
+            theme: book.theme,
+            isbn: book.isbn ?? isbn,
+            coverUrl: book.coverUrl,
+            coverBytes: book.coverBytes,
+            coverExtension: book.coverExtension,
+          ));
+        }
+      } catch (error) {
+        errors.add(error);
+      }
+    }
+
+    final uniqueBooks = _mergeSearchResults(books);
+    if (uniqueBooks.isEmpty && errors.isNotEmpty) {
+      throw Exception(
+        'Ricerca cataloghi non disponibile: '
+        '${errors.map((error) => error.toString()).join(' ')}',
+      );
+    }
+    return CatalogSearchResult(
+      books: uniqueBooks,
+      warnings: errors.map((error) => error.toString()).toList(),
+    );
+  }
+
+  Future<List<IsbnBookDetails>> _searchGoogleBooks(
+    String query,
+    String? isbn,
+  ) async {
+    final response = await _get(
+      Uri.https('www.googleapis.com', '/books/v1/volumes', {
+        'q': isbn == null ? 'intitle:$query' : 'isbn:$isbn',
+        'maxResults': '10',
+        'printType': 'books',
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw _CatalogHttpException('Google Books', response.statusCode);
+    }
+
+    final body = jsonDecode(response.body);
+    final items = body is Map ? body['items'] : null;
+    if (items is! List) return const [];
+
+    final results = <IsbnBookDetails>[];
+    for (final item in items.whereType<Map>()) {
+      final volumeInfo = item['volumeInfo'];
+      if (volumeInfo is! Map) continue;
+      final info = Map<String, dynamic>.from(volumeInfo);
+      final title = _text(info['title']);
+      if (title == null) continue;
+      final authors = info['authors'];
+      final imageLinks = info['imageLinks'];
+      final imageUrl = imageLinks is Map
+          ? _text(imageLinks['thumbnail']) ??
+              _text(imageLinks['smallThumbnail'])
+          : null;
+      results.add(IsbnBookDetails(
+        title: title,
+        author: _firstText(authors),
+        year: _year(info['publishedDate']),
+        pages: _positiveInt(info['pageCount']),
+        theme: _firstText(info['categories']),
+        isbn: _isbnFromGoogleIdentifiers(info['industryIdentifiers']),
+        coverUrl: _httpsUrl(imageUrl),
+      ));
+    }
+    return results;
+  }
+
+  Future<List<IsbnBookDetails>> _searchOpenLibrary(
+    String query,
+    String? isbn,
+  ) async {
+    final response = await _get(
+      Uri.https('openlibrary.org', '/search.json', {
+        isbn == null ? 'title' : 'isbn': isbn ?? query,
+        'fields':
+            'title,author_name,first_publish_year,number_of_pages_median,cover_i,isbn',
+        'limit': '10',
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw _CatalogHttpException('Open Library', response.statusCode);
+    }
+
+    final body = jsonDecode(response.body);
+    final docs = body is Map ? body['docs'] : null;
+    if (docs is! List) return const [];
+
+    return docs
+        .whereType<Map>()
+        .map((doc) {
+          final title = _text(doc['title']);
+          if (title == null) return null;
+          final coverId = _positiveInt(doc['cover_i']);
+          return IsbnBookDetails(
+            title: title,
+            author: _firstText(doc['author_name']),
+            year: _positiveInt(doc['first_publish_year']),
+            pages: _positiveInt(doc['number_of_pages_median']),
+            isbn: _firstValidIsbn(doc['isbn']),
+            coverUrl: coverId == null
+                ? null
+                : 'https://covers.openlibrary.org/b/id/$coverId-M.jpg?default=false',
+          );
+        })
+        .whereType<IsbnBookDetails>()
+        .toList();
+  }
+
+  List<IsbnBookDetails> _mergeSearchResults(
+    List<IsbnBookDetails> results,
+  ) {
+    final merged = <IsbnBookDetails>[];
+    for (final result in results) {
+      final resultIsbn = normalizeIsbn(result.isbn ?? '');
+      final resultTitle = result.title.trim().toLowerCase();
+      final resultAuthor = (result.author ?? '').trim().toLowerCase();
+      final existingIndex = merged.indexWhere((existing) {
+        final existingIsbn = normalizeIsbn(existing.isbn ?? '');
+        if (resultIsbn != null && existingIsbn != null) {
+          return resultIsbn == existingIsbn;
+        }
+        return resultTitle == existing.title.trim().toLowerCase() &&
+            resultAuthor == (existing.author ?? '').trim().toLowerCase();
+      });
+      if (existingIndex < 0) {
+        merged.add(result);
+        continue;
+      }
+
+      final existing = merged[existingIndex];
+      merged[existingIndex] = IsbnBookDetails(
+        title: existing.title,
+        author: existing.author ?? result.author,
+        year: existing.year ?? result.year,
+        pages: existing.pages ?? result.pages,
+        plot: existing.plot ?? result.plot,
+        theme: existing.theme ?? result.theme,
+        isbn: existing.isbn ?? result.isbn,
+        coverUrl: existing.coverUrl ?? result.coverUrl,
+        coverBytes: existing.coverBytes ?? result.coverBytes,
+        coverExtension: existing.coverExtension ?? result.coverExtension,
+      );
+    }
+    return merged;
+  }
+
+  String? _isbnFromGoogleIdentifiers(dynamic identifiers) {
+    if (identifiers is! List) return null;
+    final entries = identifiers.whereType<Map>();
+    for (final type in const ['ISBN_13', 'ISBN_10']) {
+      for (final entry in entries) {
+        if (_text(entry['type']) != type) continue;
+        final isbn = normalizeIsbn(_text(entry['identifier']) ?? '');
+        if (isbn != null) return isbn;
+      }
+    }
+    return null;
+  }
+
+  String? _firstValidIsbn(dynamic candidates) {
+    if (candidates is! List) return null;
+    for (final candidate in candidates) {
+      final isbn = normalizeIsbn(candidate?.toString() ?? '');
+      if (isbn != null) return isbn;
+    }
+    return null;
+  }
+
+  String? _httpsUrl(String? value) {
+    final uri = Uri.tryParse(value ?? '');
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return null;
+    }
+    return uri.scheme == 'http'
+        ? uri.replace(scheme: 'https').toString()
+        : uri.toString();
   }
 
   List<String> _isbnCandidates(String isbn) {

@@ -1,0 +1,4 @@
+project_id = "hodevrrcdgkbmlhfsgze"
+
+[functions.nicebooks-search]
+verify_jwt = true

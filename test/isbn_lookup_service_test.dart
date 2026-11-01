@@ -7,6 +7,141 @@ import 'package:la_mia_libreria/services/isbn_lookup_service.dart';
 
 void main() {
   group('IsbnLookupService', () {
+    test('searches public catalogs by title and merges matching books',
+        () async {
+      final service = IsbnLookupService(
+        client: MockClient((request) async {
+          if (request.url.host == 'www.googleapis.com') {
+            expect(
+                request.url.queryParameters['q'], 'intitle:Fantastic Mr. Fox');
+            return http.Response(
+              jsonEncode({
+                'items': [
+                  {
+                    'volumeInfo': {
+                      'title': 'Fantastic Mr. Fox',
+                      'authors': ['Roald Dahl'],
+                      'publishedDate': '1988',
+                      'pageCount': 96,
+                      'categories': ['Juvenile Fiction'],
+                      'industryIdentifiers': [
+                        {'type': 'ISBN_13', 'identifier': '9780140328721'},
+                      ],
+                      'imageLinks': {
+                        'thumbnail': 'http://covers.example/book.jpg',
+                      },
+                    },
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          expect(request.url.host, 'openlibrary.org');
+          expect(request.url.queryParameters['title'], 'Fantastic Mr. Fox');
+          return http.Response(
+            jsonEncode({
+              'docs': [
+                {
+                  'title': 'Fantastic Mr. Fox',
+                  'author_name': ['Roald Dahl'],
+                  'first_publish_year': 1988,
+                  'number_of_pages_median': 96,
+                  'isbn': ['9780140328721'],
+                  'cover_i': 123,
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final result = await service.search('Fantastic Mr. Fox');
+
+      expect(result.books, hasLength(1));
+      expect(result.books.single.title, 'Fantastic Mr. Fox');
+      expect(result.books.single.author, 'Roald Dahl');
+      expect(result.books.single.isbn, '9780140328721');
+      expect(result.books.single.theme, 'Juvenile Fiction');
+      expect(result.books.single.coverUrl, 'https://covers.example/book.jpg');
+      expect(result.warnings, isEmpty);
+      service.close();
+    });
+
+    test('searches by ISBN and reports a catalog warning when one fails',
+        () async {
+      final service = IsbnLookupService(
+        client: MockClient((request) async {
+          if (request.url.host == 'www.googleapis.com') {
+            expect(request.url.queryParameters['q'], 'isbn:9780140328721');
+            return http.Response('Unavailable', 503);
+          }
+          if (request.url.host == 'openlibrary.org') {
+            expect(request.url.queryParameters['isbn'], '9780140328721');
+            return http.Response(
+              jsonEncode({
+                'docs': [
+                  {
+                    'title': 'Fantastic Mr. Fox',
+                    'author_name': ['Roald Dahl'],
+                    'isbn': ['9780140328721'],
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          expect(request.url.host, 'nicebooks.com');
+          return http.Response('<html>Book not found</html>', 200);
+        }),
+      );
+
+      final result = await service.search('978-0-14-032872-1');
+
+      expect(result.books, hasLength(1));
+      expect(result.books.single.isbn, '9780140328721');
+      expect(result.warnings, hasLength(1));
+      expect(result.warnings.single, contains('Google Books'));
+      service.close();
+    });
+
+    test('includes NiceBooks metadata in ISBN catalog search', () async {
+      final service = IsbnLookupService(
+        client: MockClient((request) async {
+          if (request.url.host == 'www.googleapis.com') {
+            return http.Response('{"items":[]}', 200);
+          }
+          if (request.url.host == 'openlibrary.org') {
+            return http.Response('{"docs":[]}', 200);
+          }
+          expect(request.url.host, 'nicebooks.com');
+          expect(request.url.queryParameters['isbn'], '9788806226961');
+          expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
+          return http.Response(
+            '''
+            <div class="search-result-line">
+              <a href="/it/book/33749046-Ernesto" class="title">Ernesto</a>
+              <div>di <a class="sublinks">Saba, Umberto</a></div>
+              <div>23 Marzo 2015, Edizione in brossura, 100 pagine</div>
+            </div>
+            ''',
+            200,
+          );
+        }),
+      );
+
+      final result = await service.search('9788806226961');
+
+      expect(result.books, hasLength(1));
+      expect(result.books.single.title, 'Ernesto');
+      expect(result.books.single.author, 'Saba, Umberto');
+      expect(result.books.single.year, 2015);
+      expect(result.books.single.pages, 100);
+      expect(result.books.single.isbn, '9788806226961');
+      service.close();
+    });
+
     test('loads Google Books metadata, plot, and cover', () async {
       Uri? requestedCoverUri;
       final service = IsbnLookupService(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/book.dart';
 import '../services/isbn_lookup_service.dart';
@@ -35,8 +36,10 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
   final _pages = TextEditingController();
   final _location = TextEditingController();
   final _isbn = TextEditingController();
+  final _catalogQuery = TextEditingController();
   final _plot = TextEditingController();
   final _notes = TextEditingController();
+  List<IsbnBookDetails> _catalogResults = [];
 
   String _status = 'to_read';
   String _color = '#8D6E63';
@@ -45,22 +48,13 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
   bool _saving = false;
   bool _coverBusy = false;
   bool _isbnBusy = false;
+  bool _catalogBusy = false;
   bool _plotOcrBusy = false;
   String? _error;
   String? _isbnMessage;
+  String? _catalogMessage;
 
-  static const _palette = [
-    '#8D6E63',
-    '#EF5350',
-    '#AB47BC',
-    '#5C6BC0',
-    '#29B6F6',
-    '#26A69A',
-    '#66BB6A',
-    '#FFCA28',
-    '#FF7043',
-    '#78909C',
-  ];
+  static const _palette = kBookColorPalette;
 
   bool get _isEdit => widget.existing != null;
 
@@ -95,6 +89,7 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
       _pages,
       _location,
       _isbn,
+      _catalogQuery,
       _plot,
       _notes
     ]) {
@@ -165,6 +160,217 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
       lookup.close();
       if (mounted) setState(() => _isbnBusy = false);
     }
+  }
+
+  Future<void> _searchCatalog() async {
+    final query = _catalogQuery.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _catalogResults = [];
+        _catalogMessage = 'Inserisci un titolo o un ISBN da cercare.';
+      });
+      return;
+    }
+
+    final lookup = IsbnLookupService();
+    setState(() {
+      _catalogBusy = true;
+      _catalogResults = [];
+      _catalogMessage = null;
+    });
+    try {
+      final result = await lookup.search(query);
+      if (!mounted) return;
+      setState(() {
+        _catalogResults = result.books;
+        if (result.books.isEmpty) {
+          _catalogMessage = 'Nessun libro trovato nei cataloghi.';
+        } else if (result.warnings.isNotEmpty) {
+          _catalogMessage = 'Risultati parziali. ${result.warnings.join(' ')}';
+        } else {
+          _catalogMessage =
+              '${result.books.length} risultati. Seleziona un libro per '
+              'compilare la scheda.';
+        }
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _catalogMessage = '$error'.replaceFirst(
+              RegExp(r'^(?:Exception|FormatException): '),
+              '',
+            ));
+      }
+    } finally {
+      lookup.close();
+      if (mounted) setState(() => _catalogBusy = false);
+    }
+  }
+
+  Future<void> _selectCatalogBook(IsbnBookDetails book) async {
+    setState(() {
+      _title.text = book.title;
+      if (book.author != null) _author.text = book.author!;
+      _isbn.text = book.isbn ?? normalizeIsbn(_catalogQuery.text) ?? '';
+      if (book.year != null) _year.text = '${book.year}';
+      if (book.pages != null) _pages.text = '${book.pages}';
+      if (book.theme != null && _theme.text.trim().isEmpty) {
+        _theme.text = book.theme!;
+      }
+      if (book.coverUrl != null) _coverUrl = book.coverUrl;
+      _status = 'to_buy';
+      _catalogMessage =
+          'Dati caricati: controlla la tematica e premi “Salva libro”.';
+    });
+    if (book.coverBytes != null) {
+      try {
+        final coverPath = await context.read<LocalLibraryService>().saveCover(
+              book.coverBytes!,
+              'nicebooks-cover${book.coverExtension ?? '.jpg'}',
+            );
+        if (mounted) setState(() => _coverUrl = coverPath);
+      } catch (error) {
+        if (mounted) {
+          _toast(
+              'Dati importati, ma non è stato possibile salvare la copertina: $error');
+        }
+      }
+    }
+  }
+
+  Future<void> _openCatalogSearch(String site) async {
+    final query = _catalogQuery.text.trim();
+    if (query.isEmpty) {
+      _toast('Inserisci prima un titolo o un ISBN.');
+      return;
+    }
+    final searchTerm = normalizeIsbn(query) ?? query;
+    final Uri uri;
+    if (site == 'Anobii') {
+      uri = Uri.https('www.anobii.com', '/it/search', {'query': searchTerm});
+    } else if (site == 'BookFinder') {
+      uri = Uri.https('www.bookfinder.com', '/search/', {
+        'keywords': searchTerm,
+        'currency': 'EUR',
+        'destination': 'it',
+      });
+    } else {
+      final isbn = normalizeIsbn(query);
+      if (isbn == null) {
+        _toast('NiceBooks permette la ricerca tramite ISBN.');
+        return;
+      }
+      uri = Uri.https('nicebooks.com', '/it/search/isbn', {'isbn': isbn});
+    }
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+          mounted) {
+        _toast('Impossibile aprire la ricerca su $site.');
+      }
+    } catch (error) {
+      if (mounted) _toast('Impossibile aprire la ricerca su $site: $error');
+    }
+  }
+
+  Widget _catalogSearchSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Cerca un libro da acquistare',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            const Text('Cerca per titolo o ISBN nei cataloghi pubblici.'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _catalogQuery,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _searchCatalog(),
+              decoration: const InputDecoration(
+                labelText: 'Titolo o ISBN',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: _catalogBusy ? null : _searchCatalog,
+              icon: _catalogBusy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.manage_search),
+              label: Text(_catalogBusy ? 'Ricerca…' : 'Cerca cataloghi'),
+            ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _openCatalogSearch('Anobii'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Cerca su Anobii'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _openCatalogSearch('BookFinder'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Cerca su BookFinder'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _openCatalogSearch('NiceBooks'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Cerca su NiceBooks (ISBN)'),
+                ),
+              ],
+            ),
+            if (_catalogMessage != null) ...[
+              const SizedBox(height: 4),
+              Text(_catalogMessage!,
+                  style: TextStyle(
+                    color: _catalogResults.isEmpty
+                        ? AppColors.muted
+                        : AppColors.brand,
+                    fontSize: 13,
+                  )),
+            ],
+            for (final book in _catalogResults) _catalogResultCard(book),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _catalogResultCard(IsbnBookDetails book) {
+    final subtitle = [
+      book.author,
+      book.year?.toString(),
+      book.isbn,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: ListTile(
+        leading: book.coverUrl == null
+            ? const Icon(Icons.menu_book)
+            : SizedBox(
+                width: 40,
+                height: 56,
+                child: Image.network(
+                  book.coverUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.menu_book),
+                ),
+              ),
+        title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: subtitle.isEmpty ? null : Text(subtitle),
+        trailing: IconButton(
+          tooltip: 'Importa i dati nella scheda',
+          onPressed: () => _selectCatalogBook(book),
+          icon: const Icon(Icons.file_download_outlined),
+        ),
+        onTap: () => _selectCatalogBook(book),
+      ),
+    );
   }
 
   Future<List<int>?> _pickBytes() async {
@@ -313,6 +519,10 @@ class _AddEditBookScreenState extends State<AddEditBookScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            if (!_isEdit) ...[
+              _catalogSearchSection(),
+              const SizedBox(height: 12),
+            ],
             // Barcode scan
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
