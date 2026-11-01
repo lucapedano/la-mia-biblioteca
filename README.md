@@ -79,6 +79,9 @@ flutter build appbundle --flavor standard --release
    Se il progetto Supabase esiste già, esegui anche
    [la migrazione per i libri da acquistare](./supabase/migrations/20261031000000_add_to_buy_status.sql)
    dal SQL Editor: aggiunge il nuovo stato senza modificare i libri esistenti.
+   Esegui anche
+   [la migrazione anti-doppioni](./supabase/migrations/20261101131500_prevent_duplicate_books.sql)
+   dal SQL Editor: blocca i duplicati a livello database per app, sito e importazioni.
 3. Copia il Project URL e la chiave pubblica `anon`/publishable del progetto.
    Non usare mai la chiave `service_role`.
 4. Nel progetto locale crea `supabase.local.json` (è escluso da Git) con
@@ -124,7 +127,9 @@ flutter build appbundle --flavor standard --release
    Puoi inoltre aprire le ricerche su Anobii o BookFinder; verifica i dati prima
    di salvare. L'inserimento viene bloccato se l'ISBN è già presente o se
    coincidono titolo e autore senza differenze di edizione; ISBN diversi
-   possono identificare edizioni separate.
+   possono identificare edizioni separate. Il controllo viene applicato anche
+   dal database, quindi vale per app, sito e importazioni; eventuali doppioni
+   già presenti non vengono cancellati automaticamente.
    Puoi cambiare lo stato dalla scheda del libro per spostarlo nella libreria.
    Il sito permette anche di cambiare il colore del post-it ed eliminare libri
    dalla scheda e riordinare i post-it nella vista **Tutti i libri**

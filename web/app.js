@@ -94,6 +94,9 @@
   })[char]);
   const errorMessage = (error, fallback) => {
     const message = String(error?.message || '');
+    if (error?.code === '23505' && message.startsWith('DUPLICATE_BOOK:')) {
+      return 'Questo libro è già presente nella libreria.';
+    }
     if (/too many connections|remaining connection slots|max clients reached/i.test(message)) {
       return 'Supabase ha raggiunto temporaneamente il limite di connessioni. Attendi qualche minuto e riprova con Aggiorna.';
     }

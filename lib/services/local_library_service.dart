@@ -26,13 +26,12 @@ class LibraryImportResult {
 }
 
 class DuplicateBookException implements Exception {
-  final Book existing;
+  final String message;
 
-  const DuplicateBookException(this.existing);
+  const DuplicateBookException(this.message);
 
   @override
-  String toString() =>
-      'Il libro "${existing.title}" di ${existing.author} è già presente nella libreria.';
+  String toString() => message;
 }
 
 /// Local-first library storage with optional authenticated cloud sync.
@@ -436,7 +435,11 @@ class LocalLibraryService {
   Future<Book> create(Map<String, dynamic> payload) async {
     final candidate = Book.fromJson(payload);
     final duplicate = _findCreationDuplicate(candidate);
-    if (duplicate != null) throw DuplicateBookException(duplicate);
+    if (duplicate != null) {
+      throw DuplicateBookException(
+        'Il libro "${duplicate.title}" di ${duplicate.author} è già presente nella libreria.',
+      );
+    }
 
     final now = DateTime.now().toUtc().toIso8601String();
     final book = Book.fromJson({
@@ -447,7 +450,19 @@ class LocalLibraryService {
     });
     _books.add(book);
     await _persist();
-    await _uploadAfterLocalSave([book]);
+    try {
+      await _uploadAfterLocalSave([book]);
+    } on DuplicateBookException {
+      _books.removeWhere((item) => item.id == book.id);
+      try {
+        await _persist();
+      } catch (rollbackError) {
+        throw StateError(
+          'Il duplicato è stato rifiutato dal cloud, ma non è stato possibile rimuoverlo dal dispositivo: $rollbackError',
+        );
+      }
+      rethrow;
+    }
     return book;
   }
 
@@ -517,6 +532,14 @@ class LocalLibraryService {
       await _uploadBooks(books);
     } catch (error) {
       _cloudSyncError = '$error';
+      if (error is PostgrestException &&
+          error.code == '23505' &&
+          error.message.startsWith('DUPLICATE_BOOK:')) {
+        _cloudSyncError = null;
+        throw const DuplicateBookException(
+          'Questo libro è già presente nella libreria.',
+        );
+      }
       throw StateError(
         'Modifica salvata sul dispositivo, ma non sincronizzata: $error',
       );
