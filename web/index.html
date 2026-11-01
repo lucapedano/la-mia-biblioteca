@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f5f0">
     <title>La mia Biblioteca</title>
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=14">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="app.js?v=20" defer></script>
+    <script src="app.js?v=22" defer></script>
   </head>
   <body>
     <main class="shell">
@@ -167,6 +167,16 @@
       <form id="add-book-form" class="book-form">
         <span class="eyebrow">LA TUA COLLEZIONE</span>
         <h2>Aggiungi un libro</h2>
+        <section class="catalog-search" aria-labelledby="catalog-search-title">
+          <h3 id="catalog-search-title">Cerca per titolo o ISBN</h3>
+          <div class="catalog-search-row">
+            <input id="book-catalog-query" type="search" placeholder="Titolo o ISBN" aria-label="Cerca un libro per titolo o ISBN">
+            <button id="search-book-catalog" class="button button-primary" type="button">Cerca</button>
+          </div>
+          <div id="catalog-source-links" class="catalog-source-links"></div>
+          <p id="catalog-search-message" class="catalog-search-message" role="status"></p>
+          <div id="catalog-search-results" class="catalog-search-results"></div>
+        </section>
         <label for="book-title">Titolo *</label>
         <input id="book-title" name="title" required maxlength="250">
         <label for="book-author">Autore *</label>
@@ -209,6 +219,23 @@
           <button id="save-book" class="button button-primary" type="submit">Salva libro</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="theme-color-dialog" aria-labelledby="theme-color-title">
+      <button id="close-theme-color-dialog" class="dialog-close" type="button" aria-label="Chiudi">×</button>
+      <div class="theme-color-form">
+        <span class="eyebrow">PERSONALIZZA LA RACCOLTA</span>
+        <h2 id="theme-color-title"></h2>
+        <p>Il colore si applica alla tematica e ai post-it dei suoi libri; viene salvato solo in questo browser.</p>
+        <label for="theme-color-value">Colore</label>
+        <input id="theme-color-value" type="color" value="#8d6e63">
+        <p id="theme-color-message" class="message" role="status"></p>
+        <div class="form-actions">
+          <button id="reset-theme-color" class="button button-quiet" type="button">Ripristina</button>
+          <button id="cancel-theme-color" class="button button-quiet" type="button">Annulla</button>
+          <button id="save-theme-color" class="button button-primary" type="button">Salva colore</button>
+        </div>
+      </div>
     </dialog>
   </body>
 </html>

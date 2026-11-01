@@ -8,6 +8,10 @@
   const statusMessage = document.querySelector('#status');
   const grid = document.querySelector('#book-grid');
   const dialog = document.querySelector('#book-dialog');
+  const themeColorDialog = document.querySelector('#theme-color-dialog');
+  const themeColorTitle = document.querySelector('#theme-color-title');
+  const themeColorInput = document.querySelector('#theme-color-value');
+  const themeColorMessage = document.querySelector('#theme-color-message');
   const details = document.querySelector('#book-detail-content');
   const editBookForm = document.querySelector('#edit-book-form');
   const editBookMessage = document.querySelector('#edit-book-message');
@@ -16,6 +20,12 @@
   const addBookDialog = document.querySelector('#add-book-dialog');
   const addBookForm = document.querySelector('#add-book-form');
   const addBookMessage = document.querySelector('#add-book-message');
+  const catalogQuery = document.querySelector('#book-catalog-query');
+  const catalogSearchButton = document.querySelector('#search-book-catalog');
+  const catalogSearchMessage = document.querySelector('#catalog-search-message');
+  const catalogSearchResults = document.querySelector('#catalog-search-results');
+  const catalogSourceLinks = document.querySelector('#catalog-source-links');
+  let catalogSearchRequestId = 0;
   const demoBanner = document.querySelector('#demo-banner');
   const statusLabels = {
     to_buy: 'Da acquistare',
@@ -68,6 +78,7 @@
   let libraryViewMode = 'themes';
   let loadingBooks = false;
   let activeBookId = null;
+  let activeThemeForColor = null;
   let cardDrag = null;
   let coverRequestQueue = Promise.resolve();
   const signedCoverUrls = new Map();
@@ -110,6 +121,62 @@
   function getThemeOrderKey() {
     const userId = currentUser?.id || (demoMode ? 'demo' : null);
     return userId ? `la-mia-biblioteca:theme-order:${userId}` : null;
+  }
+
+  function getThemeColorKey() {
+    const userId = currentUser?.id || (demoMode ? 'demo' : null);
+    return userId ? `la-mia-biblioteca:theme-colors:${userId}` : null;
+  }
+
+  function readThemeColorOverrides() {
+    const key = getThemeColorKey();
+    if (!key) return {};
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return {};
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Il formato dei colori salvati non è valido.');
+      }
+      for (const [theme, color] of Object.entries(parsed)) {
+        if (!theme.trim() || !/^#[\da-f]{6}$/i.test(String(color))) {
+          throw new Error('È presente un colore tematico non valido.');
+        }
+      }
+      return parsed;
+    } catch (error) {
+      statusMessage.textContent =
+        `Impossibile leggere i colori delle tematiche: ${error.message || String(error)}`;
+      return null;
+    }
+  }
+
+  function saveThemeColorOverride(theme, color) {
+    const key = getThemeColorKey();
+    if (!key) throw new Error('Accedi per salvare il colore della tematica.');
+    const overrides = readThemeColorOverrides();
+    if (overrides === null) {
+      throw new Error('Correggi i colori salvati nel browser prima di modificarli.');
+    }
+    if (color === null) delete overrides[theme];
+    else overrides[theme] = bookColor(color);
+    try {
+      if (Object.keys(overrides).length) {
+        localStorage.setItem(key, JSON.stringify(overrides));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch (error) {
+      throw new Error(`Impossibile salvare il colore nel browser: ${error.message || String(error)}`);
+    }
+  }
+
+  function themeLabelForBook(book) {
+    return String(book.theme || '').trim() || 'Senza tematica';
+  }
+
+  function displayBookColor(book, overrides) {
+    return bookColor(overrides?.[themeLabelForBook(book)] || book.color);
   }
 
   function setOrderHint() {
@@ -486,6 +553,227 @@
     }
   }
 
+  function catalogIsbn(value) {
+    const compact = String(value || '').replace(/[^\dX]/gi, '').toUpperCase();
+    return /^\d{9}[\dX]$/.test(compact) || /^\d{13}$/.test(compact)
+      ? compact
+      : null;
+  }
+
+  function catalogSearchUrl(site, query) {
+    const isbn = catalogIsbn(query);
+    const searchTerm = isbn || query.trim();
+    if (site === 'anobii') {
+      return `https://www.anobii.com/it/search?query=${encodeURIComponent(searchTerm)}`;
+    }
+    const params = new URLSearchParams({
+      currency: 'EUR',
+      destination: 'it',
+    });
+    params.set(isbn ? 'isbn' : 'title', searchTerm);
+    return `https://www.bookfinder.com/search/?${params.toString()}`;
+  }
+
+  function renderCatalogSourceLinks(query) {
+    if (!query) {
+      catalogSourceLinks.innerHTML = '';
+      return;
+    }
+    catalogSourceLinks.innerHTML = ['Anobii', 'BookFinder'].map((site) => `
+      <a class="button button-quiet" href="${escapeHtml(catalogSearchUrl(site === 'Anobii' ? 'anobii' : 'bookfinder', query))}"
+        target="_blank" rel="noopener noreferrer">Cerca su ${site}</a>
+    `).join('');
+  }
+
+  function catalogBookIsbn(values) {
+    if (!Array.isArray(values)) return null;
+    const candidates = values
+      .map((item) => catalogIsbn(item?.identifier ?? item))
+      .filter(Boolean);
+    return candidates.find((isbn) => isbn.length === 13) || candidates[0] || null;
+  }
+
+  function catalogCoverUrl(value) {
+    const coverUrl = String(value || '').trim();
+    if (!/^https?:\/\//i.test(coverUrl)) return '';
+    return coverUrl.replace(/^http:\/\//i, 'https://');
+  }
+
+  async function searchGoogleBooks(query, isbn) {
+    const params = new URLSearchParams({
+      q: isbn ? `isbn:${isbn}` : `intitle:${query}`,
+      maxResults: '8',
+      printType: 'books',
+    });
+    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?${params}`);
+    if (!response.ok) throw new Error(`Google Books (HTTP ${response.status})`);
+    const body = await response.json();
+    const items = Array.isArray(body.items) ? body.items : [];
+    return items.map((item) => {
+      const info = item.volumeInfo || {};
+      const identifiers = Array.isArray(info.industryIdentifiers)
+        ? info.industryIdentifiers
+        : [];
+      const publishedYear = String(info.publishedDate || '').match(/\b\d{4}\b/)?.[0];
+      const imageLinks = info.imageLinks || {};
+      return {
+        title: String(info.title || '').trim(),
+        author: Array.isArray(info.authors) ? info.authors.join(', ') : '',
+        year: publishedYear ? Number(publishedYear) : null,
+        pages: Number.isInteger(info.pageCount) ? info.pageCount : null,
+        theme: Array.isArray(info.categories) ? String(info.categories[0] || '') : '',
+        isbn: catalogBookIsbn(identifiers),
+        coverUrl: catalogCoverUrl(imageLinks.thumbnail || imageLinks.smallThumbnail),
+      };
+    }).filter((book) => book.title);
+  }
+
+  async function searchOpenLibrary(query, isbn) {
+    const params = new URLSearchParams({
+      fields: 'title,author_name,first_publish_year,number_of_pages_median,cover_i,isbn',
+      limit: '8',
+    });
+    params.set(isbn ? 'isbn' : 'title', isbn || query);
+    const response = await fetch(`https://openlibrary.org/search.json?${params}`);
+    if (!response.ok) throw new Error(`Open Library (HTTP ${response.status})`);
+    const body = await response.json();
+    const docs = Array.isArray(body.docs) ? body.docs : [];
+    return docs.map((doc) => {
+      const coverId = Number(doc.cover_i);
+      return {
+        title: String(doc.title || '').trim(),
+        author: Array.isArray(doc.author_name) ? doc.author_name.join(', ') : '',
+        year: Number.isInteger(doc.first_publish_year) ? doc.first_publish_year : null,
+        pages: Number.isInteger(doc.number_of_pages_median)
+          ? doc.number_of_pages_median
+          : null,
+        theme: '',
+        isbn: catalogBookIsbn(doc.isbn),
+        coverUrl: Number.isInteger(coverId) && coverId > 0
+          ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`
+          : '',
+      };
+    }).filter((book) => book.title);
+  }
+
+  function mergeCatalogBooks(books) {
+    const unique = [];
+    for (const book of books) {
+      const existingIndex = unique.findIndex((existing) => {
+        if (existing.isbn && book.isbn) return existing.isbn === book.isbn;
+        return existing.title.toLocaleLowerCase() === book.title.toLocaleLowerCase() &&
+          existing.author.toLocaleLowerCase() === book.author.toLocaleLowerCase();
+      });
+      if (existingIndex < 0) {
+        unique.push(book);
+        continue;
+      }
+      const existing = unique[existingIndex];
+      unique[existingIndex] = Object.fromEntries(
+        Object.keys(existing).map((key) => [key, existing[key] || book[key]]),
+      );
+    }
+    return unique;
+  }
+
+  function importCatalogBook(book) {
+    const fields = {
+      title: book.title,
+      author: book.author,
+      theme: book.theme,
+      year: book.year,
+      pages: book.pages,
+      isbn: book.isbn || catalogIsbn(catalogQuery.value),
+      cover_url: book.coverUrl,
+      status: 'to_buy',
+    };
+    for (const [name, value] of Object.entries(fields)) {
+      if (value === null || value === undefined || value === '') continue;
+      addBookForm.elements.namedItem(name).value = String(value);
+    }
+    catalogSearchMessage.textContent =
+      'Dati inseriti nella scheda. Controlla la tematica e salva il libro.';
+  }
+
+  function resetCatalogSearch() {
+    catalogSearchRequestId++;
+    catalogQuery.value = '';
+    catalogSearchMessage.textContent = '';
+    catalogSearchResults.innerHTML = '';
+    catalogSourceLinks.innerHTML = '';
+    catalogSearchButton.disabled = false;
+  }
+
+  async function searchBookCatalogs() {
+    const query = catalogQuery.value.trim();
+    if (!query) {
+      catalogSearchMessage.textContent = 'Inserisci un titolo o un ISBN.';
+      catalogQuery.focus();
+      return;
+    }
+
+    const isbn = catalogIsbn(query);
+    const requestId = ++catalogSearchRequestId;
+    catalogSearchButton.disabled = true;
+    catalogSearchMessage.textContent = 'Ricerca nei cataloghi…';
+    catalogSearchResults.innerHTML = '';
+    renderCatalogSourceLinks(query);
+    try {
+      const responses = await Promise.allSettled([
+        searchGoogleBooks(query, isbn),
+        searchOpenLibrary(query, isbn),
+      ]);
+      if (requestId !== catalogSearchRequestId) return;
+      const books = mergeCatalogBooks(
+        responses
+          .filter((response) => response.status === 'fulfilled')
+          .flatMap((response) => response.value),
+      );
+      const warnings = responses
+        .filter((response) => response.status === 'rejected')
+        .map((response) => response.reason.message || String(response.reason));
+      catalogSearchResults.innerHTML = books.map((book, index) => {
+        const subtitle = [book.author, book.year, book.isbn]
+          .filter(Boolean)
+          .map(escapeHtml)
+          .join(' · ');
+        return `<article class="catalog-search-result">
+          ${book.coverUrl
+            ? `<img class="catalog-search-cover" src="${escapeHtml(book.coverUrl)}" alt="">`
+            : ''}
+          <div class="catalog-search-result-info">
+            <strong>${escapeHtml(book.title)}</strong>
+            ${subtitle ? `<span>${subtitle}</span>` : ''}
+          </div>
+          <button class="button button-primary" type="button" data-import-catalog="${index}">Importa</button>
+        </article>`;
+      }).join('');
+      catalogSearchResults.querySelectorAll('[data-import-catalog]').forEach((button) => {
+        button.addEventListener('click', () => {
+          importCatalogBook(books[Number(button.dataset.importCatalog)]);
+        });
+      });
+      if (books.length) {
+        catalogSearchMessage.textContent = warnings.length
+          ? `Risultati parziali. ${warnings.join(' ')}`
+          : `${books.length} risultati. Seleziona un libro per compilare la scheda.`;
+      } else {
+        catalogSearchMessage.textContent = warnings.length
+          ? `Ricerca non disponibile: ${warnings.join(' ')}`
+          : 'Nessun libro trovato nei cataloghi. Puoi provare su Anobii o BookFinder.';
+      }
+    } catch (error) {
+      if (requestId === catalogSearchRequestId) {
+        catalogSearchMessage.textContent =
+          `Ricerca non riuscita: ${error.message || String(error)}`;
+      }
+    } finally {
+      if (requestId === catalogSearchRequestId) {
+        catalogSearchButton.disabled = false;
+      }
+    }
+  }
+
   function enterDemo() {
     demoMode = true;
     setOrderHint();
@@ -581,6 +869,7 @@
   }
 
   function renderBookCards(displayedBooks) {
+    const themeColors = readThemeColorOverrides();
     grid.innerHTML = displayedBooks.map((book) => `
       <article class="book-card" data-id="${escapeHtml(book.id)}" tabindex="0" aria-label="Apri la scheda di ${escapeHtml(book.title)}">
         ${libraryViewMode === 'books' ? `<div class="book-card-tools">
@@ -588,12 +877,12 @@
           <button class="move-book-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(book.title)} prima">↑</button>
           <button class="move-book-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(book.title)} dopo">↓</button>
         </div>` : ''}
-        <div class="cover" style="--cover:${bookColor(book.color)}">
+        <div class="cover" style="--cover:${displayBookColor(book, themeColors)}">
           ${book.displayCover
             ? `<img src="${escapeHtml(book.displayCover)}" alt="Copertina di ${escapeHtml(book.title)}">`
             : '<span class="cover-symbol" aria-hidden="true">▤</span>'}
         </div>
-        <div class="book-info" style="--book-color:${bookColor(book.color)}">
+        <div class="book-info" style="--book-color:${displayBookColor(book, themeColors)}">
           <h2 class="book-title" title="${escapeHtml(book.title)}">
             ${escapeHtml(book.title)}${isNewBook(book) ? '<span class="new-book-mark">Nuovo</span>' : ''}
           </h2>
@@ -633,12 +922,28 @@
     });
   }
 
+  function openThemeColorDialog(theme) {
+    if (demoMode) return;
+    const overrides = readThemeColorOverrides();
+    const firstBook = books.find((book) => themeLabelForBook(book) === theme);
+    themeColorTitle.textContent = `Colore tematica: ${theme}`;
+    themeColorMessage.textContent = '';
+    themeColorInput.value = bookColor(overrides?.[theme] || firstBook?.color);
+    activeThemeForColor = theme;
+    themeColorDialog.showModal();
+  }
+
   function renderThemeGroups(visibleBooks) {
     const groups = new Map();
+    const themeColors = readThemeColorOverrides();
     visibleBooks.forEach((book) => {
       const label = String(book.theme || '').trim() || 'Senza tematica';
       if (!groups.has(label)) {
-        groups.set(label, { label, color: bookColor(book.color), count: 0 });
+        groups.set(label, {
+          label,
+          color: bookColor(themeColors?.[label] || book.color),
+          count: 0,
+        });
       }
       groups.get(label).count += 1;
     });
@@ -653,6 +958,7 @@
           <span class="drag-handle" title="Tieni premuto e trascina per spostare" aria-label="Tieni premuto e trascina per spostare ${escapeHtml(group.label)}">⠿</span>
           <button class="move-theme-button" type="button" data-move="-1" aria-label="Sposta ${escapeHtml(group.label)} prima" ${sortedGroups.length < 2 ? 'disabled title="Serve un’altra tematica per riordinare"' : ''}>↑</button>
           <button class="move-theme-button" type="button" data-move="1" aria-label="Sposta ${escapeHtml(group.label)} dopo" ${sortedGroups.length < 2 ? 'disabled title="Serve un’altra tematica per riordinare"' : ''}>↓</button>
+          ${demoMode ? '' : `<button class="theme-color-button" type="button" aria-label="Cambia colore tematica ${escapeHtml(group.label)}" title="Cambia colore tematica">🎨</button>`}
         </div>
         <button class="theme-open" type="button" data-theme="${escapeHtml(group.label)}"
           style="--theme-color:${group.color};--theme-text:${contrastColor(group.color)}">
@@ -665,6 +971,12 @@
         event.stopPropagation();
         const label = button.closest('.theme-card').dataset.theme;
         moveThemeBy(label, Number(button.dataset.move));
+      });
+    });
+    grid.querySelectorAll('.theme-color-button').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openThemeColorDialog(button.closest('.theme-card').dataset.theme);
       });
     });
     grid.querySelectorAll('.theme-open').forEach((button) => {
@@ -1227,6 +1539,7 @@
       statusMessage.textContent = 'La demo è di sola consultazione. Accedi per aggiungere libri.';
       return;
     }
+    resetCatalogSearch();
     addBookMessage.textContent = '';
     document.querySelector('#book-status').value =
       libraryViewMode === 'purchase' ? 'to_buy' : 'to_read';
@@ -1234,10 +1547,52 @@
     document.querySelector('#book-title').focus();
   });
   addBookForm.addEventListener('submit', addBook);
+  catalogSearchButton.addEventListener('click', searchBookCatalogs);
+  catalogQuery.addEventListener('input', () =>
+    renderCatalogSourceLinks(catalogQuery.value.trim()),
+  );
+  catalogQuery.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      searchBookCatalogs();
+    }
+  });
   document.querySelector('#close-add-dialog').addEventListener('click', () => addBookDialog.close());
   document.querySelector('#cancel-add-book').addEventListener('click', () => addBookDialog.close());
   addBookDialog.addEventListener('click', (event) => {
     if (event.target === addBookDialog) addBookDialog.close();
+  });
+  document.querySelector('#close-theme-color-dialog').addEventListener('click', () => {
+    themeColorDialog.close();
+  });
+  document.querySelector('#cancel-theme-color').addEventListener('click', () => {
+    themeColorDialog.close();
+  });
+  document.querySelector('#save-theme-color').addEventListener('click', () => {
+    if (!activeThemeForColor) return;
+    try {
+      saveThemeColorOverride(activeThemeForColor, themeColorInput.value);
+      themeColorDialog.close();
+      renderBooks();
+    } catch (error) {
+      themeColorMessage.textContent = error.message || String(error);
+    }
+  });
+  document.querySelector('#reset-theme-color').addEventListener('click', () => {
+    if (!activeThemeForColor) return;
+    try {
+      saveThemeColorOverride(activeThemeForColor, null);
+      themeColorDialog.close();
+      renderBooks();
+    } catch (error) {
+      themeColorMessage.textContent = error.message || String(error);
+    }
+  });
+  themeColorDialog.addEventListener('click', (event) => {
+    if (event.target === themeColorDialog) themeColorDialog.close();
+  });
+  themeColorDialog.addEventListener('close', () => {
+    activeThemeForColor = null;
   });
   document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
   document.querySelector('#cancel-edit-book').addEventListener('click', () => {

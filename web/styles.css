@@ -70,6 +70,8 @@ select, input[type=email], input[type=password] { border: 1px solid var(--line);
 .move-theme-button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-weight: 700; }
 .move-theme-button:hover:not(:disabled) { background: #e8eee8; }
 .move-theme-button:disabled { cursor: default; opacity: .4; }
+.theme-color-button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 6px; background: transparent; font-size: 19px; }
+.theme-color-button:hover { background: #e8eee8; }
 .theme-card.is-dragging { opacity: .45; }
 .theme-card.is-drop-target { outline: 3px dashed var(--green); outline-offset: 3px; transform: scale(1.02); }
 .theme-fold { position: absolute; top: 0; right: 0; width: 23px; height: 23px; background: linear-gradient(225deg, #0005 50%, transparent 51%); }
@@ -122,12 +124,31 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
 .book-form label { margin-top: 4px; font-size: 13px; font-weight: 600; }
 .book-form input, .book-form select, .book-form textarea { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
 .book-form textarea { resize: vertical; }
+.catalog-search { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #f9f8f4; }
+.catalog-search h3 { margin: 0; font-size: 16px; }
+.catalog-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.catalog-search-row .button { min-height: 42px; }
+.catalog-source-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.catalog-search-message { margin: 0; color: var(--muted); font-size: 13px; }
+.catalog-search-results { display: grid; gap: 8px; }
+.catalog-search-result { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 9px; padding: 9px; background: var(--card); }
+.catalog-search-cover { width: 42px; height: 58px; flex: 0 0 42px; border-radius: 3px; object-fit: cover; background: #eee; }
+.catalog-search-result-info { min-width: 0; flex: 1; }
+.catalog-search-result-info strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-search-result-info span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-row > div { display: grid; gap: 8px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .form-actions .button-quiet { padding: 0 12px; }
 .book-form .message { margin: 0 !important; color: #a13d34; }
 .book-form .message:empty { display: none; }
+.theme-color-form { display: grid; gap: 12px; padding: 30px; }
+.theme-color-form h2 { margin: 0 40px 0 0; font: 700 26px 'Playfair Display', serif; }
+.theme-color-form p { margin: 0; color: var(--muted); line-height: 1.5; }
+.theme-color-form label { font-size: 13px; font-weight: 600; }
+.theme-color-form input[type=color] { width: 100%; min-height: 52px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.theme-color-form .form-actions { flex-wrap: wrap; }
+.theme-color-form #theme-color-message { color: #a13d34; }
 .empty { grid-column: 1/-1; padding: 52px 16px; color: var(--muted); text-align: center; }
 @media (max-width: 780px) { .book-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) {
@@ -136,10 +157,14 @@ dialog::backdrop { background: #181c19a6; backdrop-filter: blur(2px); }
   .account span { display: none; }
   .account { gap: 8px; }
   .account .button { padding: 0 10px; }
+  .theme-card-tools { gap: 0; padding: 2px; }
+  .theme-card-tools .drag-handle, .theme-card-tools .move-theme-button, .theme-card-tools .theme-color-button { width: 34px; height: 34px; }
   .book-card-tools { top: 6px; right: 6px; gap: 1px; }
   .move-book-button { width: 25px; height: 25px; }
   .theme-card-tools { top: 6px; right: 6px; gap: 1px; }
   .move-theme-button { width: 25px; height: 25px; }
+  .catalog-search-row { grid-template-columns: 1fr; }
+  .catalog-search-row .button { width: 100%; }
   .hero { padding-top: 38px; }
   .hero { align-items: start; gap: 16px; flex-direction: column; }
   .hero-actions { width: 100%; }
